@@ -1,0 +1,91 @@
+import React, { useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
+import { usersApi, usersData, usersError } from '../../../api/users/users-api-service';
+import '../master/Master.css';
+import './Users.css';
+
+type Module = { id: number; name: string };
+
+const empty = { fullName: '', userName: '', password: '' };
+
+const CreateUserPage: React.FC = () => {
+  const [form, setForm] = useState(empty);
+  const [modules, setModules] = useState<Module[]>([]);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    usersApi.modules()
+      .then((res) => setModules(usersData<Module[]>(res) || []))
+      .catch((err) => toast.error(usersError(err, 'Could not load modules')));
+  }, []);
+
+  const toggle = (id: number) => {
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.fullName.trim() || !form.userName.trim() || !form.password.trim()) {
+      toast.warning('Full name, username and password are required');
+      return;
+    }
+    setBusy(true);
+    try {
+      await usersApi.create({
+        fullName: form.fullName.trim(),
+        userName: form.userName.trim(),
+        password: form.password,
+        moduleIds: selected,
+      });
+      toast.success('User created');
+      setForm(empty);
+      setSelected([]);
+    } catch (err) {
+      toast.error(usersError(err, 'Could not create user'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mst-page">
+      <h2 className="mst-title"><i className="fas fa-user-plus" /> Create User</h2>
+      <div className="mst-card usr-narrow">
+        <div className="mst-card-h">New User</div>
+        <form className="mst-card-b mst-form one-col" onSubmit={onSubmit}>
+          <div className="mst-fg">
+            <label>Full Name <span className="req">*</span></label>
+            <input className="mst-inp" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
+          </div>
+          <div className="mst-fg">
+            <label>Username <span className="req">*</span></label>
+            <input className="mst-inp" value={form.userName} onChange={(e) => setForm({ ...form, userName: e.target.value })} />
+          </div>
+          <div className="mst-fg">
+            <label>Password <span className="req">*</span></label>
+            <input className="mst-inp" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          </div>
+          <div className="mst-fg">
+            <label>Module Permissions</label>
+            <div className="usr-checks">
+              {modules.map((m) => (
+                <label key={m.id} className="mst-check">
+                  <input type="checkbox" checked={selected.includes(m.id)} onChange={() => toggle(m.id)} />
+                  {m.name}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="mst-actions">
+            <button className="mst-btn mst-btn-primary" type="submit" disabled={busy} style={{ width: '100%' }}>
+              {busy ? 'Saving…' : 'Create User'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default CreateUserPage;
