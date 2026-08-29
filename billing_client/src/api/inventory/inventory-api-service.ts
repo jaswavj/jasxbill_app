@@ -22,6 +22,7 @@ export class InventoryApiService {
 
   purchaseForReturn = (search: string) => this.http.get(`/v1/inventory/returns/bill?search=${encodeURIComponent(search)}`);
   saveReturn = (payload: any) => this.http.post('/v1/inventory/returns', payload);
+  returnHistory = (detailId: number) => this.http.get(`/v1/inventory/returns/history?detailId=${detailId}`);
   returnReport = (from: string, to: string, supplierId?: number) => {
     const params = new URLSearchParams({ from, to });
     if (supplierId) params.set('supplierId', String(supplierId));

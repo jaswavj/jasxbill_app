@@ -15,6 +15,22 @@ import ThemeRoot, { syncDocumentTheme } from './theme/ThemeRoot';
 
 syncDocumentTheme();
 
+document.addEventListener(
+  'wheel',
+  (event) => {
+    const target = event.target;
+    if (
+      target instanceof HTMLInputElement
+      && target.type === 'number'
+      && document.activeElement === target
+    ) {
+      event.preventDefault();
+      target.blur();
+    }
+  },
+  { passive: false }
+);
+
 const root = ReactDOM.createRoot(
     document.getElementById('root') as HTMLElement
 );

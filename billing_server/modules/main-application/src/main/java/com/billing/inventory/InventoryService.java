@@ -6,6 +6,7 @@ import com.billing.inventory.dto.PurchaseLineRequest;
 import com.billing.inventory.dto.PurchaseLookupsData;
 import com.billing.inventory.dto.PurchaseProductData;
 import com.billing.inventory.dto.PurchaseReportRow;
+import com.billing.inventory.dto.PurchaseReturnHistoryRow;
 import com.billing.inventory.dto.PurchaseReturnItem;
 import com.billing.inventory.dto.PurchaseReturnReportRow;
 import com.billing.inventory.dto.ReturnBillData;
@@ -403,8 +404,7 @@ public class InventoryService {
                     if (rs.getInt(7) == 1) return null;
                     double orig = rs.getDouble(3) + rs.getDouble(4);
                     double already = returned.getOrDefault(rs.getLong(1), 0d);
-                    double available = orig - already;
-                    if (available <= 0) return null;
+                    double available = Math.max(0, orig - already);
                     ReturnLineData line = new ReturnLineData();
                     line.setDetailId(rs.getLong(1));
                     line.setProduct(rs.getString(2));
@@ -560,6 +560,28 @@ public class InventoryService {
             row.setEnteredBy(rs.getString(9));
             return row;
         }, args.toArray());
+    }
+
+    public List<PurchaseReturnHistoryRow> returnHistory(Long detailId) {
+        return jdbcTemplate.query(
+                "SELECT pr.return_no, prd.qty, prd.rate, prd.total, IFNULL(pr.notes,''), pr.date_time, IFNULL(u.user_name,'—') " +
+                        "FROM prod_purchase_return_details prd " +
+                        "JOIN prod_purchase_return pr ON prd.return_id = pr.id " +
+                        "LEFT JOIN users u ON pr.uid = u.id " +
+                        "WHERE prd.purchase_detail_id = ? ORDER BY pr.date_time DESC",
+                (rs, i) -> {
+                    PurchaseReturnHistoryRow row = new PurchaseReturnHistoryRow();
+                    row.setReturnNo(rs.getString(1));
+                    row.setQty(rs.getDouble(2));
+                    row.setRate(rs.getDouble(3));
+                    row.setTotal(rs.getDouble(4));
+                    row.setNotes(rs.getString(5));
+                    row.setDateTime(rs.getString(6));
+                    row.setEnteredBy(rs.getString(7));
+                    return row;
+                },
+                detailId
+        );
     }
 
     public List<SupplierPaymentRow> supplierPaymentReport(String from, String to, Long supplierId) {

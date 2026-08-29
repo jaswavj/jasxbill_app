@@ -98,6 +98,11 @@ public class InventoryController {
         return ok(inventoryService.returnReport(from, to, supplierId));
     }
 
+    @GetMapping("/returns/history")
+    public ResponseDO returnHistory(@RequestParam Long detailId) {
+        return ok(inventoryService.returnHistory(detailId));
+    }
+
     @GetMapping("/payments/report")
     public ResponseDO paymentReport(@RequestParam String from,
                                     @RequestParam String to,

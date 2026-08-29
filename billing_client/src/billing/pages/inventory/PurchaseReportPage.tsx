@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { inventoryApi, invData, invError } from '../../../api/inventory/inventory-api-service';
 import '../master/Master.css';
+import '../BillingPage.css';
 
 type Supplier = { id: number; name: string };
 type Row = {
@@ -37,7 +38,7 @@ const PurchaseReportPage: React.FC = () => {
   const [supplierId, setSupplierId] = useState('0');
   const [rows, setRows] = useState<Row[]>([]);
   const [details, setDetails] = useState<Detail[] | null>(null);
-  const [openId, setOpenId] = useState<number | null>(null);
+  const [openRow, setOpenRow] = useState<Row | null>(null);
 
   useEffect(() => {
     inventoryApi.suppliers().then((res) => setSuppliers(invData<Supplier[]>(res) || [])).catch(() => undefined);
@@ -46,16 +47,21 @@ const PurchaseReportPage: React.FC = () => {
   const search = async () => {
     try {
       setRows(invData<Row[]>(await inventoryApi.purchaseReport(from, to, supplierId === '0' ? undefined : Number(supplierId))) || []);
-      setDetails(null);
+      closeDetails();
     } catch (err) {
       toast.error(invError(err, 'Could not load report'));
     }
   };
 
-  const openDetails = async (id: number) => {
+  const closeDetails = () => {
+    setDetails(null);
+    setOpenRow(null);
+  };
+
+  const openDetails = async (row: Row) => {
     try {
-      setOpenId(id);
-      setDetails(invData<Detail[]>(await inventoryApi.purchaseDetails(id)) || []);
+      setOpenRow(row);
+      setDetails(invData<Detail[]>(await inventoryApi.purchaseDetails(row.id)) || []);
     } catch (err) {
       toast.error(invError(err, 'Could not load details'));
     }
@@ -110,7 +116,7 @@ const PurchaseReportPage: React.FC = () => {
             <tbody>
               {rows.length === 0 && <tr><td colSpan={10} className="mst-empty">No purchase records found for the selected period.</td></tr>}
               {rows.map((row, i) => (
-                <tr key={row.id} onClick={() => openDetails(row.id)} style={{ cursor: 'pointer' }}>
+                <tr key={row.id} onClick={() => openDetails(row)} style={{ cursor: 'pointer' }}>
                   <td>{i + 1}</td>
                   <td>{row.invoiceNo}/{row.prno}</td>
                   <td>{row.invoiceDate}</td>
@@ -127,36 +133,64 @@ const PurchaseReportPage: React.FC = () => {
           </table>
         </div>
       </div>
-      {details && (
-        <div className="mst-card" style={{ marginTop: 12 }}>
-          <div className="mst-card-h">Purchase details {openId ? `#${openId}` : ''}</div>
-          <div className="mst-table-wrap">
-            <table className="mst-table">
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th className="num">Qty</th>
-                  <th className="num">Free</th>
-                  <th className="num">Rate</th>
-                  <th className="num">MRP</th>
-                  <th className="num">Tax%</th>
-                  <th className="num">Net</th>
-                </tr>
-              </thead>
-              <tbody>
-                {details.map((d) => (
-                  <tr key={d.id}>
-                    <td>{d.productName}</td>
-                    <td className="num">{d.quantity}</td>
-                    <td className="num">{d.free}</td>
-                    <td className="num">{d.rate}</td>
-                    <td className="num">{d.mrp}</td>
-                    <td className="num">{d.tax}</td>
-                    <td className="num">{d.netAmt}</td>
+      {details && openRow && (
+        <div className="pos-modal-back" onClick={closeDetails}>
+          <div className="pos-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pos-modal-head">
+              <h4>Purchase details — {openRow.invoiceNo}/{openRow.prno}</h4>
+              <button className="pos-btn pos-btn-outline" type="button" onClick={closeDetails}>Close</button>
+            </div>
+            <div className="pos-row" style={{ marginBottom: 12 }}>
+              <div className="pos-fg">
+                <span className="pos-lbl">Supplier</span>
+                <input className="pos-inp" readOnly value={openRow.supplierName || ''} />
+              </div>
+              <div className="pos-fg">
+                <span className="pos-lbl">Invoice Date</span>
+                <input className="pos-inp" readOnly value={openRow.invoiceDate || ''} />
+              </div>
+              <div className="pos-fg">
+                <span className="pos-lbl">Total</span>
+                <input className="pos-inp" readOnly value={Number(openRow.total || 0).toFixed(2)} />
+              </div>
+              <div className="pos-fg">
+                <span className="pos-lbl">Paid</span>
+                <input className="pos-inp" readOnly value={Number(openRow.paid || 0).toFixed(2)} />
+              </div>
+              <div className="pos-fg">
+                <span className="pos-lbl">Balance</span>
+                <input className="pos-inp" readOnly value={Number(openRow.balance || 0).toFixed(2)} />
+              </div>
+            </div>
+            <div className="mst-table-wrap">
+              <table className="mst-table">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th className="num">Qty</th>
+                    <th className="num">Free</th>
+                    <th className="num">Rate</th>
+                    <th className="num">MRP</th>
+                    <th className="num">Tax%</th>
+                    <th className="num">Net</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {details.length === 0 && <tr><td colSpan={7} className="mst-empty">No line items</td></tr>}
+                  {details.map((d) => (
+                    <tr key={d.id}>
+                      <td>{d.productName}</td>
+                      <td className="num">{d.quantity}</td>
+                      <td className="num">{d.free}</td>
+                      <td className="num">{d.rate}</td>
+                      <td className="num">{d.mrp}</td>
+                      <td className="num">{d.tax}</td>
+                      <td className="num">{d.netAmt}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

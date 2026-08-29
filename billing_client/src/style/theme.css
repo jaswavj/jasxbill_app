@@ -259,6 +259,16 @@ body {
   font-size: var(--font-size-sm);
 }
 
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 button, input, select, textarea,
 .btn, .form-control, .form-select, .form-label,
 .dropdown-menu, .modal, .nav, .navbar, .table, .card, .badge {
