@@ -7,7 +7,6 @@ import {
   Cell,
   ComposedChart,
   Legend,
-  Line,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -34,7 +33,6 @@ const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 const SALES = '#3b82f6';
 const PURCHASE = '#f97316';
 const EXPENSE = '#a78bfa';
-const NET = '#10b981';
 
 const n = (v?: number) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const trend = (pct: number, last: number) => last === 0 ? '— No prev. data' : `${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct).toFixed(1)}% vs last month`;
@@ -103,10 +101,7 @@ const StatsDashboardPage: React.FC = () => {
   useEffect(() => { load(); }, []);
 
   const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() + 1 - i);
-  const daily = useMemo(
-    () => (data?.daily || []).map((d) => ({ ...d, net: Number(d.sales || 0) - Number(d.purchase || 0) })),
-    [data]
-  );
+  const daily = data?.daily || [];
   const pieData = useMemo(() => {
     if (!data) return [];
     return [
@@ -119,9 +114,8 @@ const StatsDashboardPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className="fas fa-chart-line" /> Dashboard</h2>
-      <div className="mst-card" style={{ marginBottom: 12 }}>
-        <div className="mst-card-b mst-form">
+      <div className="mst-card st-filter" style={{ marginBottom: 12 }}>
+        <div className="mst-card-b st-filter-row">
           <div className="mst-fg">
             <label>Year</label>
             <select className="mst-sel" value={year} onChange={(e) => setYear(Number(e.target.value))}>
@@ -134,7 +128,7 @@ const StatsDashboardPage: React.FC = () => {
               {months.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
             </select>
           </div>
-          <div className="mst-actions">
+          <div className="st-filter-acts">
             <button className="mst-btn mst-btn-primary" type="button" onClick={() => load()}>Load</button>
             {(year !== now.getFullYear() || month !== now.getMonth() + 1) && (
               <button className="mst-btn mst-btn-outline" type="button" onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth() + 1); load(now.getFullYear(), now.getMonth() + 1); }}>Current Month</button>
@@ -179,7 +173,6 @@ const StatsDashboardPage: React.FC = () => {
                     <Area type="monotone" dataKey="sales" name="Sales trend" fill="url(#salesFill)" stroke="none" legendType="none" tooltipType="none" />
                     <Bar dataKey="sales" name="Sales" fill="url(#salesBar)" radius={[4, 4, 0, 0]} maxBarSize={16} />
                     <Bar dataKey="purchase" name="Purchase" fill="url(#purchaseBar)" radius={[4, 4, 0, 0]} maxBarSize={16} />
-                    <Line type="monotone" dataKey="net" name="Net (S−P)" stroke={NET} strokeWidth={2.2} dot={false} activeDot={{ r: 4 }} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>

@@ -4,6 +4,7 @@ import { accountApi, accountData, accountError } from '../../../api/account-repo
 import { usersApi, usersData } from '../../../api/users/users-api-service';
 import '../master/Master.css';
 import { n3, sum, today } from './reportHelpers';
+import { useBillDetail } from './BillDetailModal';
 
 type Opt = { id: number; name: string; isActive?: number };
 type Row = {
@@ -17,6 +18,7 @@ const SalesByAttenderPage: React.FC = () => {
   const [attenderId, setAttenderId] = useState('0');
   const [attenders, setAttenders] = useState<Opt[]>([]);
   const [rows, setRows] = useState<Row[] | null>(null);
+  const { openBill, billModal } = useBillDetail();
 
   useEffect(() => {
     usersApi.attenders()
@@ -64,7 +66,7 @@ const SalesByAttenderPage: React.FC = () => {
               <tbody>
                 {rows.length === 0 && <tr><td colSpan={11} className="mst-empty">No records.</td></tr>}
                 {rows.map((row, i) => (
-                  <tr key={`${row.billNo}-${i}`}>
+                  <tr key={`${row.billNo}-${i}`} className="mst-click-row" onClick={() => openBill(row.billNo)}>
                     <td>{i + 1}</td>
                     <td>{row.billNo}</td>
                     <td>{row.customer}</td>
@@ -94,6 +96,7 @@ const SalesByAttenderPage: React.FC = () => {
           </div>
         </div>
       )}
+      {billModal}
     </div>
   );
 };

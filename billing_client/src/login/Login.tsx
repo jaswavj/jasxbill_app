@@ -18,7 +18,7 @@ import { LoginApiService } from '../api/login/login-api-service'
 import { StorageService } from '../api/storage/storageService'
 import { saveLoginDataAction, authLogout } from './components/state/loginSlice'
 import { RootState } from '../state/store'
-import { routerPathNames } from '../routes/routerPathNames'
+import { defaultAppPath } from '../billing/config/menu.config'
 import billingConfig from '../billingConfig'
 import logo from '../assets/images/logo.png'
 import './Login.css'
@@ -51,7 +51,7 @@ const Login = () => {
       if (response?.success) {
         dispatch(saveLoginDataAction(response?.data))
         storageService.setToken(response?.data?.accessToken)
-        navigate(routerPathNames.dashboard)
+        navigate(defaultAppPath(response?.data?.moduleIds))
       } else {
         setErrorMessage(response?.data?.error || 'Login failed')
       }
@@ -68,7 +68,7 @@ const Login = () => {
 
   useEffect(() => {
     if (loginUser.authorized && storageService.getToken()) {
-      navigate(routerPathNames.dashboard)
+      navigate(defaultAppPath(loginUser.moduleIds))
     }
   }, [loginUser])
 

@@ -3,7 +3,8 @@ import { toast } from 'react-toastify';
 import { accountApi, accountData, accountError } from '../../../api/account-reports/account-report-api-service';
 import { adminApi, adminData } from '../../../api/admin/admin-api-service';
 import '../master/Master.css';
-import { n2, n3, sum, today } from './reportHelpers';
+import { n3, sum, today } from './reportHelpers';
+import { useBillDetail } from './BillDetailModal';
 
 type User = { id: number; name: string };
 type Bill = {
@@ -24,6 +25,7 @@ const SalesReportPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [bills, setBills] = useState<Bill[] | null>(null);
   const [dues, setDues] = useState<Due[]>([]);
+  const { openBill, billModal } = useBillDetail();
 
   useEffect(() => {
     adminApi.users().then((res) => setUsers(adminData<User[]>(res) || [])).catch(() => undefined);
@@ -95,7 +97,7 @@ const SalesReportPage: React.FC = () => {
                 <tbody>
                   {bills.length === 0 && <tr><td colSpan={13} className="mst-empty">No sales found.</td></tr>}
                   {bills.map((row, i) => (
-                    <tr key={`${row.billNo}-${i}`}>
+                    <tr key={`${row.billNo}-${i}`} className="mst-click-row" onClick={() => openBill(row.billNo)}>
                       <td>{i + 1}</td>
                       <td>{row.billNo}</td>
                       <td>{row.customer}</td>
@@ -168,6 +170,7 @@ const SalesReportPage: React.FC = () => {
           </div>
         </>
       )}
+      {billModal}
     </div>
   );
 };

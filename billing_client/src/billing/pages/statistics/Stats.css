@@ -1,3 +1,29 @@
+.st-filter {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.st-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.st-filter-row .mst-fg {
+  width: 120px;
+}
+
+.st-filter-row .mst-fg:nth-child(2) {
+  width: 150px;
+}
+
+.st-filter-acts {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 1px;
+}
+
 .st-kpis {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

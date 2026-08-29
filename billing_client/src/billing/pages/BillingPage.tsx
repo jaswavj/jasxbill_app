@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import { BillingApiService } from '../../api/billing/billing-api-service';
 import { OrderListApiService } from '../../api/orders/order-list-api-service';
 import { RootState } from '../../state/store';
-import { routerBaseUrl } from '../../billingConfig';
+import { A4Invoice } from './A4Invoice';
 import './BillingPage.css';
 
 type Product = {
@@ -99,6 +100,7 @@ const BillingPage: React.FC = () => {
   const [dupeNo, setDupeNo] = useState('');
   const [history, setHistory] = useState<any[] | null>(null);
   const [historyName, setHistoryName] = useState('');
+  const [a4Bill, setA4Bill] = useState<any>(null);
 
   useEffect(() => {
     api.options().then((res: any) => {
@@ -516,8 +518,17 @@ const BillingPage: React.FC = () => {
     }
   };
 
-  const openPrintPreview = (billNo: string, format: 'a4' | 'thermal') => {
-    window.open(`${routerBaseUrl}/app/billing/print/${encodeURIComponent(billNo)}?format=${format}`, '_blank');
+  const printA4SameTab = async (billNo: string) => {
+    try {
+      const res: any = await api.printBill(billNo);
+      if (!res?.success || !res.data) {
+        toast.error('Could not load A4 invoice');
+        return;
+      }
+      setA4Bill(res.data);
+    } catch {
+      toast.error('Could not load A4 invoice');
+    }
   };
 
   const printBill = async (billNo = savedNo || dupeNo) => {
@@ -533,8 +544,7 @@ const BillingPage: React.FC = () => {
         return;
       }
       if (data.type === 'a4') {
-        openPrintPreview(data.billNo || billNo, 'a4');
-        toast.info('Opening A4 print preview');
+        await printA4SameTab(data.billNo || billNo);
       } else if (data.type === 'printed') {
         toast.success(data.message || 'Receipt printed and cut');
       } else if (data.type === 'txt') {
@@ -567,6 +577,19 @@ const BillingPage: React.FC = () => {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  useEffect(() => {
+    if (!a4Bill) return;
+    document.body.classList.add('a4-print-open');
+    const close = () => setA4Bill(null);
+    window.addEventListener('afterprint', close);
+    const t = window.setTimeout(() => window.print(), 300);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener('afterprint', close);
+      document.body.classList.remove('a4-print-open');
+    };
+  }, [a4Bill]);
 
   return (
     <div className="pos-wrap">
@@ -881,6 +904,17 @@ const BillingPage: React.FC = () => {
             </table>
           </div>
         </div>
+      )}
+
+      {a4Bill && createPortal(
+        <div className="a4-print-host">
+          <div className="a4-print-bar no-print">
+            <button className="go" type="button" onClick={() => window.print()}>Print</button>
+            <button className="stop" type="button" onClick={() => setA4Bill(null)}>Close</button>
+          </div>
+          <A4Invoice bill={a4Bill} />
+        </div>,
+        document.body
       )}
     </div>
   );

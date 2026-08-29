@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { accountData, accountError } from '../../../api/account-reports/account-report-api-service';
 import '../master/Master.css';
 import { n3, sum, today } from './reportHelpers';
+import { useBillDetail } from './BillDetailModal';
 
 type Opt = { id: number; name: string };
 type Row = {
@@ -25,6 +26,7 @@ const LineSalesReport: React.FC<Props> = ({ title, icon, filterLabel, loadOption
   const [id, setId] = useState('');
   const [options, setOptions] = useState<Opt[]>([]);
   const [rows, setRows] = useState<Row[] | null>(null);
+  const { openBill, billModal } = useBillDetail();
 
   useEffect(() => {
     loadOptions().then((res) => setOptions(accountData<Opt[]>(res) || [])).catch(() => undefined);
@@ -75,7 +77,7 @@ const LineSalesReport: React.FC<Props> = ({ title, icon, filterLabel, loadOption
               <tbody>
                 {rows.length === 0 && <tr><td colSpan={15} className="mst-empty">No records.</td></tr>}
                 {rows.map((row, i) => (
-                  <tr key={`${row.billNo}-${i}`}>
+                  <tr key={`${row.billNo}-${i}`} className="mst-click-row" onClick={() => openBill(row.billNo)}>
                     <td>{i + 1}</td>
                     <td>{row.billNo}<div className="mst-note">{row.productName}</div></td>
                     <td>{row.customer}</td>
@@ -108,6 +110,7 @@ const LineSalesReport: React.FC<Props> = ({ title, icon, filterLabel, loadOption
           </div>
         </div>
       )}
+      {billModal}
     </div>
   );
 };

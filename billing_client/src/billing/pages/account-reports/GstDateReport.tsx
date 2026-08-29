@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { accountData, accountError } from '../../../api/account-reports/account-report-api-service';
 import '../master/Master.css';
 import { n2, today } from './reportHelpers';
+import { useBillDetail } from './BillDetailModal';
 
 export type GstCol = { key: string; label: string; num?: boolean; total?: boolean };
 
@@ -17,6 +18,7 @@ const GstDateReport: React.FC<Props> = ({ title, icon, columns, fetchRows }) => 
   const [from, setFrom] = useState(today());
   const [to, setTo] = useState(today());
   const [rows, setRows] = useState<any[] | null>(null);
+  const { openBill, billModal } = useBillDetail();
 
   const search = async () => {
     try {
@@ -50,7 +52,11 @@ const GstDateReport: React.FC<Props> = ({ title, icon, columns, fetchRows }) => 
               <tbody>
                 {rows.length === 0 && <tr><td colSpan={columns.length + 1} className="mst-empty">No records.</td></tr>}
                 {rows.map((row, i) => (
-                  <tr key={i}>
+                  <tr
+                    key={i}
+                    className={row.billNo ? 'mst-click-row' : undefined}
+                    onClick={() => row.billNo && openBill(row.billNo)}
+                  >
                     <td>{i + 1}</td>
                     {columns.map((c) => (
                       <td key={c.key} className={c.num ? 'num' : undefined}>
@@ -74,6 +80,7 @@ const GstDateReport: React.FC<Props> = ({ title, icon, columns, fetchRows }) => 
           </div>
         </div>
       )}
+      {billModal}
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { accountApi, accountData, accountError } from '../../../api/account-reports/account-report-api-service';
 import '../master/Master.css';
 import { n2, today } from './reportHelpers';
+import { useBillDetail } from './BillDetailModal';
 
 type BookRow = { category: string; inAmt: number; outAmt: number };
 type DetailRow = { category: string; cash: number; credit: number; bank: number; total: number };
@@ -34,6 +35,7 @@ const DayBookPage: React.FC = () => {
   const [ob, setOb] = useState(emptyOb);
   const [obRows, setObRows] = useState<ObRow[]>([]);
   const [busy, setBusy] = useState(false);
+  const { openBill, billModal } = useBillDetail();
 
   const loadOb = () => {
     accountApi.openingBalances().then((res) => setObRows(accountData<ObRow[]>(res) || [])).catch(() => undefined);
@@ -270,7 +272,11 @@ const DayBookPage: React.FC = () => {
                 <tbody>
                   {data.sales.length === 0 && <tr><td colSpan={7} className="mst-empty">No sales.</td></tr>}
                   {data.sales.map((row, i) => (
-                    <tr key={`${row.billNo}-${i}`}>
+                    <tr
+                      key={`${row.billNo}-${i}`}
+                      className={row.status === 'Cancelled' ? undefined : 'mst-click-row'}
+                      onClick={() => row.status !== 'Cancelled' && openBill(row.billNo)}
+                    >
                       <td>{i + 1}</td>
                       <td>{row.date}</td>
                       <td>{row.billNo}</td>
@@ -286,6 +292,7 @@ const DayBookPage: React.FC = () => {
           </div>
         </>
       )}
+      {billModal}
     </div>
   );
 };

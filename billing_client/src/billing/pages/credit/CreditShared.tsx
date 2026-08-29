@@ -109,7 +109,7 @@ export const CreditIndex: React.FC<{ kind: PartyKind }> = ({ kind }) => {
   const party = isCustomer ? 'Customer' : 'Supplier';
 
   return (
-    <div className="mst-page crd-narrow">
+    <div className="mst-page crd-narrow crd-index">
       <h2 className="mst-title">
         <i className={isCustomer ? 'fas fa-wallet' : 'fas fa-hand-holding-usd'} />
         {isCustomer ? 'Customers Balance' : 'Supplier Payment'}
@@ -387,20 +387,24 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
   const showPayType = showPay && (payMode === '2' || payMode === '3');
 
   return (
-    <div className="mst-page">
-      <button
-        className="mst-btn mst-btn-outline crd-back"
-        type="button"
-        onClick={() => navigate(isCustomer ? '/app/credit/customer-balance' : '/app/credit/supplier-payment')}
-      >
-        <i className="fas fa-arrow-left" /> Back
-      </button>
-      <h2 className="mst-title">
-        <i className={isCustomer ? 'fas fa-user-circle' : 'fas fa-truck'} />
-        {account.name}
-      </h2>
-      <div className="mst-note" style={{ marginTop: -10, marginBottom: 12 }}>
-        {isCustomer ? 'Customer' : 'Supplier'} Account — {account.phone}
+    <div className="mst-page crd-account">
+      <div className="crd-account-head">
+        <button
+          className="mst-btn mst-btn-outline crd-back"
+          type="button"
+          onClick={() => navigate(isCustomer ? '/app/credit/customer-balance' : '/app/credit/supplier-payment')}
+        >
+          <i className="fas fa-arrow-left" /> Back
+        </button>
+        <div className="crd-account-id">
+          <h2 className="mst-title">
+            <i className={isCustomer ? 'fas fa-user-circle' : 'fas fa-truck'} />
+            {account.name}
+          </h2>
+          <div className="mst-note">
+            {isCustomer ? 'Customer' : 'Supplier'} Account — {account.phone}
+          </div>
+        </div>
       </div>
       <div className="crd-layout">
         <div className="crd-left">

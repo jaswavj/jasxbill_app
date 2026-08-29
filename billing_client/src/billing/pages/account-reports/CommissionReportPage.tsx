@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { accountApi, accountData, accountError } from '../../../api/account-reports/account-report-api-service';
 import '../master/Master.css';
 import { n2, n3, sum, today } from './reportHelpers';
+import { useBillDetail } from './BillDetailModal';
 
 type Opt = { id: number; name: string };
 type Row = {
@@ -16,6 +17,7 @@ const CommissionReportPage: React.FC = () => {
   const [customerId, setCustomerId] = useState('');
   const [customers, setCustomers] = useState<Opt[]>([]);
   const [rows, setRows] = useState<Row[] | null>(null);
+  const { openBill, billModal } = useBillDetail();
 
   useEffect(() => {
     accountApi.commissionCustomers().then((res) => setCustomers(accountData<Opt[]>(res) || [])).catch(() => undefined);
@@ -65,7 +67,7 @@ const CommissionReportPage: React.FC = () => {
               <tbody>
                 {rows.length === 0 && <tr><td colSpan={10} className="mst-empty">No records.</td></tr>}
                 {rows.map((row, i) => (
-                  <tr key={`${row.billNo}-${i}`}>
+                  <tr key={`${row.billNo}-${i}`} className="mst-click-row" onClick={() => openBill(row.billNo)}>
                     <td>{i + 1}</td>
                     <td>{row.billNo}</td>
                     <td>{row.date}</td>
@@ -91,6 +93,7 @@ const CommissionReportPage: React.FC = () => {
           </div>
         </div>
       )}
+      {billModal}
     </div>
   );
 };

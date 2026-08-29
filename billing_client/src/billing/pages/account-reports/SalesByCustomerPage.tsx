@@ -4,6 +4,7 @@ import { accountApi, accountData, accountError } from '../../../api/account-repo
 import { masterApi, masterData } from '../../../api/master/master-api-service';
 import '../master/Master.css';
 import { n3, sum, today } from './reportHelpers';
+import { useBillDetail } from './BillDetailModal';
 
 type Opt = { id: number; name: string };
 type Row = {
@@ -17,6 +18,7 @@ const SalesByCustomerPage: React.FC = () => {
   const [customerId, setCustomerId] = useState('');
   const [customers, setCustomers] = useState<Opt[]>([]);
   const [rows, setRows] = useState<Row[] | null>(null);
+  const { openBill, billModal } = useBillDetail();
 
   useEffect(() => {
     masterApi.customers().then((res) => setCustomers(masterData<Opt[]>(res) || [])).catch(() => undefined);
@@ -66,7 +68,7 @@ const SalesByCustomerPage: React.FC = () => {
               <tbody>
                 {rows.length === 0 && <tr><td colSpan={11} className="mst-empty">No records.</td></tr>}
                 {rows.map((row, i) => (
-                  <tr key={`${row.billNo}-${i}`}>
+                  <tr key={`${row.billNo}-${i}`} className="mst-click-row" onClick={() => openBill(row.billNo)}>
                     <td>{i + 1}</td>
                     <td>{row.billNo}</td>
                     <td className="num">{n3(row.total)}</td>
@@ -97,6 +99,7 @@ const SalesByCustomerPage: React.FC = () => {
           </div>
         </div>
       )}
+      {billModal}
     </div>
   );
 };

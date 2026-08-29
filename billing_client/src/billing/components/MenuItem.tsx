@@ -24,6 +24,7 @@ const MenuItem: React.FC<MenuItemProps> = ({
   setExpandedMenuId,
 }) => {
   const [localExpanded, setLocalExpanded] = useState(false);
+  const [childOpenId, setChildOpenId] = useState<string | null>(null);
   const location = useLocation();
   const { toggleSidebar } = useSidebar();
   const hasSubmenus = item.submenus && item.submenus.length > 0;
@@ -31,27 +32,26 @@ const MenuItem: React.FC<MenuItemProps> = ({
     ? location.pathname === item.url || location.pathname.endsWith(`/${item.url}`)
     : false;
 
-  const expanded = level === 0 ? isExpandedMenu(expandedMenuId, item.id) : localExpanded;
+  const expanded = setExpandedMenuId
+    ? isExpandedMenu(expandedMenuId, item.id)
+    : localExpanded;
+
+  const openThis = () => {
+    if (setExpandedMenuId) {
+      setExpandedMenuId(item.id);
+    } else {
+      setLocalExpanded((open) => !open);
+    }
+  };
 
   const handleClick = () => {
     if (hasSubmenus) {
       if (collapsed) {
-        if (level === 0 && setExpandedMenuId) {
-          if (!isExpandedMenu(expandedMenuId, item.id)) {
-            setExpandedMenuId(item.id);
-          }
-        } else {
-          setLocalExpanded(true);
-        }
+        if (!expanded) openThis();
         toggleSidebar();
         return;
       }
-
-      if (level === 0 && setExpandedMenuId) {
-        setExpandedMenuId(item.id);
-      } else {
-        setLocalExpanded(!localExpanded);
-      }
+      openThis();
     } else if (item.url && onNavigate) {
       onNavigate();
     }
@@ -100,8 +100,8 @@ const MenuItem: React.FC<MenuItemProps> = ({
                   level={level + 1}
                   collapsed={collapsed}
                   onNavigate={onNavigate}
-                  expandedMenuId={expandedMenuId}
-                  setExpandedMenuId={setExpandedMenuId}
+                  expandedMenuId={childOpenId}
+                  setExpandedMenuId={(id) => setChildOpenId((prev) => (prev === id ? null : id))}
                 />
               ))}
             </ul>

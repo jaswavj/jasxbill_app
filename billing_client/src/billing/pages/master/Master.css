@@ -35,6 +35,12 @@
   overflow: hidden;
 }
 
+.mst-card:has(.crd-dropdown) {
+  overflow: visible;
+  position: relative;
+  z-index: 20;
+}
+
 .mst-card-h {
   padding: 10px 14px;
   font-size: 0.95rem;
@@ -205,6 +211,10 @@
 
 .mst-table tbody tr:hover {
   background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+
+.mst-table tbody tr.mst-click-row {
+  cursor: pointer;
 }
 
 .mst-table .num {

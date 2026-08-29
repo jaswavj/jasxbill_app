@@ -4,6 +4,7 @@ import { accountApi, accountData, accountError } from '../../../api/account-repo
 import '../master/Master.css';
 import '../statistics/Stats.css';
 import { n2, today } from './reportHelpers';
+import { useBillDetail } from './BillDetailModal';
 
 type Cat = { id: number; name: string; amount: number };
 type Data = {
@@ -26,6 +27,7 @@ const DayAccountPage: React.FC = () => {
   const [data, setData] = useState<Data | null>(null);
   const [details, setDetails] = useState<Detail[] | null>(null);
   const [detailName, setDetailName] = useState('');
+  const { openBill, billModal } = useBillDetail();
 
   const search = async () => {
     try {
@@ -124,7 +126,7 @@ const DayAccountPage: React.FC = () => {
                   <tbody>
                     {details.length === 0 && <tr><td colSpan={9} className="mst-empty">No line items.</td></tr>}
                     {details.map((row, i) => (
-                      <tr key={`${row.billNo}-${i}`}>
+                      <tr key={`${row.billNo}-${i}`} className="mst-click-row" onClick={() => openBill(row.billNo)}>
                         <td>{i + 1}</td>
                         <td>{row.billNo}</td>
                         <td>{row.customer}</td>
@@ -143,6 +145,7 @@ const DayAccountPage: React.FC = () => {
           )}
         </>
       )}
+      {billModal}
     </div>
   );
 };

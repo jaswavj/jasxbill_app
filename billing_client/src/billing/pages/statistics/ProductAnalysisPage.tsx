@@ -9,6 +9,13 @@ import './Stats.css';
 type Hit = { id: number; name: string; code?: string };
 type Sec = { count: number; totalQty: number; totalAmt: number; totalCost?: number; outCount?: number; inCount?: number; totalAdd?: number; totalRemove?: number; rows: any[] };
 
+const productNames = (raw: unknown): string[] => {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => (typeof item === 'string' ? item : item?.name || item?.productName || ''))
+    .filter((name): name is string => Boolean(name));
+};
+
 const today = () => new Date().toISOString().slice(0, 10);
 const n = (v?: number) => Number(v || 0).toFixed(2);
 const tabs = [
@@ -27,7 +34,7 @@ const ProductAnalysisPage: React.FC = () => {
   const [from, setFrom] = useState(today());
   const [to, setTo] = useState(today());
   const [term, setTerm] = useState('');
-  const [hits, setHits] = useState<Hit[]>([]);
+  const [hits, setHits] = useState<string[]>([]);
   const [prod, setProd] = useState<Hit | null>(null);
   const [data, setData] = useState<any>(null);
   const [tab, setTab] = useState('sales');
@@ -41,11 +48,29 @@ const ProductAnalysisPage: React.FC = () => {
     timer.current = window.setTimeout(async () => {
       try {
         const res: any = await billingApi.searchProducts(q.trim());
-        setHits(res?.data || []);
+        setHits(productNames(res?.data));
       } catch {
         setHits([]);
       }
     }, 250);
+  };
+
+  const selectProd = async (name: string) => {
+    setTerm(name);
+    setHits([]);
+    try {
+      const res: any = await billingApi.productByName(name);
+      const p = res?.data;
+      if (!p?.id) {
+        toast.warning('Product not found.');
+        setProd(null);
+        return;
+      }
+      setProd({ id: p.id, name: p.name || name, code: p.code });
+    } catch {
+      setProd(null);
+      toast.error('Could not load product');
+    }
   };
 
   const generate = async () => {
@@ -70,8 +95,8 @@ const ProductAnalysisPage: React.FC = () => {
             <input className="mst-inp" value={term} placeholder="Type name or code…" onChange={(e) => searchProd(e.target.value)} />
             {hits.length > 0 && (
               <ul className="crd-dropdown">
-                {hits.map((p) => (
-                  <li key={p.id} onClick={() => { setProd(p); setTerm(p.name); setHits([]); }}>{p.name}{p.code ? ` (${p.code})` : ''}</li>
+                {hits.map((name) => (
+                  <li key={name} onClick={() => { void selectProd(name); }}>{name}</li>
                 ))}
               </ul>
             )}

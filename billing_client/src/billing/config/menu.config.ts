@@ -29,10 +29,20 @@ export const filterMenuByModules = (items: MenuItemConfig[], moduleIds: number[]
   return items.filter((item) => item.moduleId == null || allowed.has(item.moduleId));
 };
 
+export const hasModuleAccess = (moduleIds: number[] | undefined, moduleId: number): boolean =>
+  (moduleIds || []).map(Number).includes(moduleId);
+
+/** After login: statistics home first when allowed, otherwise the billing screen. */
+export const defaultAppPath = (moduleIds: number[] | undefined): string =>
+  hasModuleAccess(moduleIds, MENU_MODULE.statistics)
+    ? routerPathNames.dashboard
+    : routerPathNames.billing;
+
 export const moduleIdForPath = (pathname: string): number | null => {
   if (pathname.includes('/app/billing')) return MENU_MODULE.billing;
   if (pathname.includes('/app/master')) return MENU_MODULE.master;
   if (pathname.includes('/app/stock-reports')) return MENU_MODULE.stockReports;
+  if (pathname.includes('/app/users/change-password')) return null;
   if (pathname.includes('/app/users')) return MENU_MODULE.users;
   if (pathname.includes('/app/inventory')) return MENU_MODULE.inventory;
   if (pathname.includes('/app/account-reports')) return MENU_MODULE.accountReports;
@@ -165,7 +175,6 @@ export const billingMenuConfig: MenuItemConfig[] = [
       { id: 'permission', name: 'Module Permission', url: routerPathNames.users.permission, icon: 'fas fa-key' },
       { id: 'special-permission', name: 'Special Permission', url: routerPathNames.users.specialPermission, icon: 'fas fa-unlock' },
       { id: 'attender', name: 'Attender Management', url: routerPathNames.users.attender, icon: 'fas fa-user-tie' },
-      { id: 'change-password', name: 'Change Password', url: routerPathNames.users.changePassword, icon: 'fas fa-lock' },
       { id: 'user-discount', name: 'User Discount', url: routerPathNames.users.discount, icon: 'fas fa-percent' },
     ],
   },

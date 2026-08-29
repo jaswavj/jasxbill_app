@@ -1,10 +1,30 @@
 @media print {
+  @page {
+    size: A4;
+    margin: 5mm;
+  }
+
+  html,
+  body {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  body.a4-print-open #root,
   .module-sidebar,
   .app-header-shell,
   .print-controls,
+  .a4-print-bar,
   .no-print {
     display: none !important;
+    height: 0 !important;
+    overflow: hidden !important;
   }
+
   .main-layout,
   .cash-counter-layout,
   .module-content {
@@ -12,6 +32,58 @@
     height: auto !important;
     max-height: none !important;
   }
+
+  .a4-print-host {
+    position: static !important;
+    inset: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .a4-wrap {
+    break-before: auto;
+    page-break-before: auto;
+    margin: 0 auto;
+  }
+}
+
+.a4-print-host {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  background: #f3f4f6;
+  overflow: auto;
+  padding: 16px 16px 32px;
+}
+
+.a4-print-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.a4-print-bar button {
+  padding: 8px 16px;
+  font-weight: 700;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.a4-print-bar .go {
+  background: #4caf50;
+  color: #fff;
+}
+
+.a4-print-bar .stop {
+  background: #f44336;
+  color: #fff;
 }
 
 .print-page {
@@ -235,15 +307,6 @@
   padding: 4px 6px;
   opacity: 0.55;
   font-size: 8.5px;
-}
-
-@page a4page {
-  size: A4;
-  margin: 5mm;
-}
-
-.a4-wrap {
-  page: a4page;
 }
 
 /* ===== Thermal receipt ===== */

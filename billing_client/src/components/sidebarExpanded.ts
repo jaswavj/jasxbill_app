@@ -5,5 +5,5 @@ export function isExpandedMenu(expanded: ExpandedMenuId, id: string): boolean {
 }
 
 export function toggleExpandedMenus(ids: string[], id: string): string[] {
-  return ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id];
+  return ids.includes(id) ? [] : [id];
 }

@@ -1,7 +1,6 @@
 import { lazy, Suspense, type ReactElement } from 'react';
 import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 import Login from '../login/Login';
-import { routerPathNames } from './routerPathNames';
 import { routerBaseUrl } from '../billingConfig';
 
 const MainLayout = lazy(() => import('../main-layout/MainLayout'));
@@ -11,6 +10,9 @@ const SidebarProvider = lazy(() =>
 );
 const BillingLayout = lazy(() => import('../billing/BillingLayout'));
 const ModuleAccessGuard = lazy(() => import('../billing/components/ModuleAccessGuard'));
+const DefaultAppRedirect = lazy(() =>
+  import('../billing/components/ModuleAccessGuard').then((m) => ({ default: m.DefaultAppRedirect }))
+);
 const Dashboard = lazy(() => import('../billing/pages/Dashboard'));
 const BillingPage = lazy(() => import('../billing/pages/BillingPage'));
 const OrderListPage = lazy(() => import('../billing/pages/orders/OrderListPage'));
@@ -92,6 +94,7 @@ const AppRouter = () => {
           >
             <Route path="/app" element={<BillingLayout />}>
               <Route path="dashboard" element={<Dashboard />} />
+              <Route path="users/change-password" element={<ChangePasswordPage />} />
               <Route element={<ModuleAccessGuard />}>
               <Route path="billing" element={<BillingPage />} />
               <Route path="billing/print/:billNo" element={<PrintBill />} />
@@ -141,7 +144,6 @@ const AppRouter = () => {
               <Route path="users/permission" element={<ModulePermissionPage />} />
               <Route path="users/special-permission" element={<SpecialPermissionPage />} />
               <Route path="users/attender" element={<AttenderPage />} />
-              <Route path="users/change-password" element={<ChangePasswordPage />} />
               <Route path="users/discount" element={<UserDiscountPage />} />
               <Route path="admin/company-details" element={<CompanyDetailsPage />} />
               <Route path="admin/edit-bill" element={<EditBillPage />} />
@@ -155,7 +157,7 @@ const AppRouter = () => {
               <Route path="expense/entry" element={<ExpenseEntryPage />} />
               <Route path="expense/report" element={<ExpenseReportPage />} />
               </Route>
-              <Route index element={<Navigate to={routerPathNames.dashboard} replace />} />
+              <Route index element={<DefaultAppRedirect />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />
