@@ -10,6 +10,7 @@ export class InventoryApiService {
   lookups = () => this.http.get('/v1/inventory/lookups');
   searchProducts = (term: string) => this.http.get(`/v1/inventory/products?term=${encodeURIComponent(term)}`);
   productByName = (name: string) => this.http.get(`/v1/inventory/products/by-name?name=${encodeURIComponent(name)}`);
+  productByCode = (code: string) => this.http.get(`/v1/inventory/products/by-code?code=${encodeURIComponent(code)}`);
   productHistory = (name: string) => this.http.get(`/v1/inventory/products/history?name=${encodeURIComponent(name)}`);
 
   savePurchase = (payload: any) => this.http.post('/v1/inventory/purchases', payload);

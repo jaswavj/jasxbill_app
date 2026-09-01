@@ -252,8 +252,18 @@
   margin: 0;
 }
 
-.pos-save-modal {
-  width: min(720px, 100%);
+.pos-kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 22%, transparent);
+  background: var(--color-bg-page);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  text-align: center;
 }
 
 .pos-grid {
@@ -273,6 +283,10 @@
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
+}
+
+.pos-acts-end {
+  justify-content: flex-end;
 }
 
 .pos-billno {

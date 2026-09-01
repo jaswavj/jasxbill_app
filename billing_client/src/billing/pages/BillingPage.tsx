@@ -72,7 +72,6 @@ const BillingPage: React.FC = () => {
   const [price, setPrice] = useState('');
   const [unitSel, setUnitSel] = useState('');
   const [stock, setStock] = useState<number | null>(null);
-  const searchStart = useRef<number | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
 
@@ -90,6 +89,7 @@ const BillingPage: React.FC = () => {
   const [holdNo, setHoldNo] = useState('');
 
   const [saveOpen, setSaveOpen] = useState(false);
+  const [keysOpen, setKeysOpen] = useState(false);
   const [orderOpen, setOrderOpen] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
   const [orderId, setOrderId] = useState(0);
@@ -195,19 +195,24 @@ const BillingPage: React.FC = () => {
 
   const lookupByCode = async (code: string) => {
     const res: any = await api.productByCode(code);
-    if (res?.data) applyProduct(res.data);
-    else toast.error(`Product not found: ${code}`);
+    if (res?.data) {
+      applyProduct(res.data);
+      return true;
+    }
+    return false;
   };
 
   const lookupByName = async (name: string) => {
     const res: any = await api.productByName(name);
-    if (res?.data) applyProduct(res.data);
-    else toast.error(`Product not found: ${name}`);
+    if (res?.data) {
+      applyProduct(res.data);
+      return true;
+    }
+    return false;
   };
 
   const onSearchChange = async (value: string) => {
     setSearch(value);
-    if (!searchStart.current) searchStart.current = Date.now();
     if (value.trim().length < 1) {
       setNameHits([]);
       return;
@@ -225,20 +230,16 @@ const BillingPage: React.FC = () => {
       focusQty();
       return;
     }
-    const elapsed = Date.now() - (searchStart.current || Date.now());
-    const avg = val.length ? elapsed / val.length : 9999;
-    searchStart.current = null;
     const labeled = val.match(/^(.+?)\s+-\s+(.+)$/);
     if (labeled) {
-      await lookupByCode(labeled[1].trim());
+      if (!(await lookupByCode(labeled[1].trim()))) toast.error(`Product not found: ${labeled[1].trim()}`);
       return;
     }
-    if (e.key === 'Tab' || avg >= 30) {
-      const name = nameHits[0] || val;
-      await lookupByName(name);
-    } else {
-      await lookupByCode(val);
-    }
+    if (await lookupByCode(val)) return;
+    const name = nameHits[0] || val;
+    if (await lookupByName(name)) return;
+    if (name !== val && (await lookupByName(val))) return;
+    toast.error(`Product not found: ${val}`);
   };
 
   const addedQty = (productId: number) =>
@@ -565,6 +566,11 @@ const BillingPage: React.FC = () => {
 
   const newBill = () => window.location.reload();
 
+  const closeSave = () => {
+    setSaveOpen(false);
+    if (savedNo) newBill();
+  };
+
   const kgProduct = pending && ['kg', 'kgs'].includes((pending.unitName || '').toLowerCase());
 
   useEffect(() => {
@@ -572,7 +578,22 @@ const BillingPage: React.FC = () => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         openSave();
+        return;
       }
+      if (!e.altKey || e.ctrlKey || e.metaKey) return;
+      const k = e.code === 'KeyO' ? 'o'
+        : e.code === 'KeyR' ? 'r'
+        : e.code === 'KeyS' ? 's'
+        : e.code === 'KeyB' ? 'b'
+        : e.code === 'KeyP' ? 'p'
+        : e.code === 'KeyC' ? 'c'
+        : e.key.toLowerCase();
+      if (k === 'o') { e.preventDefault(); saveHold(); }
+      else if (k === 'r') { e.preventDefault(); newBill(); }
+      else if (k === 's') { e.preventDefault(); openSave(); }
+      else if (k === 'b') { e.preventDefault(); saveBill(); }
+      else if (k === 'p') { e.preventDefault(); printBill(); }
+      else if (k === 'c') { e.preventDefault(); closeSave(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -690,12 +711,14 @@ const BillingPage: React.FC = () => {
             <strong>₹{money(payable)}</strong>
           </div>
           <div className="pos-acts">
-            <button className={`pos-btn ${savedNo ? 'pos-btn-saved' : 'pos-btn-navy'}`} type="button" onClick={openSave}>
+            <button className="pos-btn pos-btn-outline" type="button" onClick={() => setKeysOpen(true)}>
+              <i className="fas fa-keyboard" /> KEYS
+            </button>
+            <button className="pos-btn pos-btn-outline" type="button" onClick={openDupe}>DUP</button>
+            <button className="pos-btn pos-btn-outline" type="button" title="Alt+R" onClick={newBill}>REFRESH</button>
+            <button className={`pos-btn ${savedNo ? 'pos-btn-saved' : 'pos-btn-navy'}`} type="button" title="Alt+S" onClick={openSave}>
               {savedNo ? 'BILL SAVED' : 'SAVE'}
             </button>
-            <button className="pos-btn pos-btn-outline" type="button" onClick={openOrders}>ORDER</button>
-            <button className="pos-btn pos-btn-outline" type="button" onClick={openDupe}>DUP</button>
-            <button className="pos-btn pos-btn-outline" type="button" onClick={newBill}>REFRESH</button>
             {savedNo && <div className="pos-billno">Bill No - {savedNo}</div>}
             {holdNo && <div className="pos-billno">Hold - {holdNo}</div>}
             {orderId > 0 && <div className="pos-billno">Order loaded</div>}
@@ -703,12 +726,36 @@ const BillingPage: React.FC = () => {
         </div>
       </div>
 
+      {keysOpen && (
+        <div className="pos-modal-back" onClick={() => setKeysOpen(false)}>
+          <div className="pos-modal" style={{ width: 'min(420px, 100%)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="pos-modal-head">
+              <h4>Shortcut keys</h4>
+              <button className="pos-btn pos-btn-outline" type="button" onClick={() => setKeysOpen(false)}>Close</button>
+            </div>
+            <table className="pos-table">
+              <tbody>
+                <tr><td>Hold bill</td><td><kbd className="pos-kbd">Alt</kbd> + <kbd className="pos-kbd">O</kbd></td></tr>
+                <tr><td>Refresh / new bill</td><td><kbd className="pos-kbd">Alt</kbd> + <kbd className="pos-kbd">R</kbd></td></tr>
+                <tr><td>Open save modal</td><td><kbd className="pos-kbd">Alt</kbd> + <kbd className="pos-kbd">S</kbd></td></tr>
+                <tr><td>Save bill</td><td><kbd className="pos-kbd">Alt</kbd> + <kbd className="pos-kbd">B</kbd></td></tr>
+                <tr><td>Print</td><td><kbd className="pos-kbd">Alt</kbd> + <kbd className="pos-kbd">P</kbd></td></tr>
+                <tr><td>Close save modal</td><td><kbd className="pos-kbd">Alt</kbd> + <kbd className="pos-kbd">C</kbd></td></tr>
+              </tbody>
+            </table>
+            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-muted)' }}>
+              After a bill is saved, Close / Alt+C refreshes the page for the next bill.
+            </div>
+          </div>
+        </div>
+      )}
+
       {saveOpen && (
-        <div className="pos-modal-back" onClick={() => setSaveOpen(false)}>
+        <div className="pos-modal-back" onClick={closeSave}>
           <div className="pos-modal pos-save-modal" onClick={(e) => e.stopPropagation()}>
             <div className="pos-modal-head">
               <h4>Save Bill</h4>
-              <button className="pos-btn pos-btn-outline" type="button" onClick={() => setSaveOpen(false)}>Close</button>
+              <button className="pos-btn pos-btn-outline" type="button" title="Alt+C" onClick={closeSave}>Close</button>
             </div>
             <div className="pos-row" style={{ marginBottom: 12 }}>
               <div className="pos-fg" style={{ flex: 1.6, minWidth: 130 }}>
@@ -802,12 +849,13 @@ const BillingPage: React.FC = () => {
               <div className="pos-fg"><span className="pos-lbl">Bank Paid</span><input className="pos-inp" value={bankPaid} disabled={mode === '1'} onChange={(e) => setBankPaid(e.target.value)} /></div>
               <div className="pos-fg"><span className="pos-lbl">Balance</span><input className="pos-inp" value={balance} disabled={mode !== '3'} onChange={(e) => setBalance(e.target.value)} /></div>
             </div>
-            <div className="pos-acts" style={{ marginTop: 14 }}>
-              <button className={`pos-btn ${savedNo ? 'pos-btn-saved' : 'pos-btn-navy'}`} disabled={saving || !!savedNo} onClick={saveBill}>
+            <div className="pos-acts pos-acts-end" style={{ marginTop: 14 }}>
+              <button className="pos-btn pos-btn-outline" type="button" title="Alt+C" onClick={closeSave}>CLOSE</button>
+              <button className="pos-btn pos-btn-outline" type="button" title="Alt+O" onClick={saveHold}>HOLD</button>
+              <button className="pos-btn pos-btn-outline" type="button" title="Alt+P" onClick={() => printBill()}>PRINT</button>
+              <button className={`pos-btn ${savedNo ? 'pos-btn-saved' : 'pos-btn-navy'}`} disabled={saving || !!savedNo} title="Alt+B" onClick={saveBill}>
                 {savedNo ? 'BILL SAVED' : saving ? 'Saving...' : 'SAVE'}
               </button>
-              <button className="pos-btn pos-btn-outline" type="button" onClick={() => printBill()}>PRINT</button>
-              <button className="pos-btn pos-btn-outline" type="button" onClick={saveHold}>HOLD</button>
               {savedNo && <div className="pos-billno">Bill No - {savedNo}</div>}
               {holdNo && <div className="pos-billno">Hold - {holdNo}</div>}
             </div>

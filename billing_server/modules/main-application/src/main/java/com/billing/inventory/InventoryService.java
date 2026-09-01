@@ -105,15 +105,29 @@ public class InventoryService {
     }
 
     public List<String> searchProductNames(String term) {
+        String like = "%" + term + "%";
         return jdbcTemplate.query(
-                "SELECT name FROM prod_product WHERE is_active = 1 AND name LIKE ? ORDER BY name LIMIT 20",
+                "SELECT name FROM prod_product WHERE is_active = 1 AND (name LIKE ? OR CAST(code AS CHAR) LIKE ?) " +
+                        "ORDER BY CASE WHEN CAST(code AS CHAR) = ? THEN 0 WHEN CAST(code AS CHAR) LIKE ? THEN 1 ELSE 2 END, name LIMIT 20",
                 (rs, i) -> rs.getString(1),
-                "%" + term + "%"
+                like, like, term, term + "%"
         );
     }
 
     public PurchaseProductData productByName(String name) {
         List<PurchaseProductData> rows = jdbcTemplate.query(productSql("a.name = ?"), this::mapProduct, name);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    public PurchaseProductData productByCode(String code) {
+        if (code == null || code.isBlank()) {
+            return null;
+        }
+        List<PurchaseProductData> rows = jdbcTemplate.query(
+                productSql("CAST(a.code AS CHAR) = ? AND a.is_active = 1"),
+                this::mapProduct,
+                code.trim()
+        );
         return rows.isEmpty() ? null : rows.get(0);
     }
 

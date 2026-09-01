@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { inventoryApi, invData, invError } from '../../../api/inventory/inventory-api-service';
 import '../master/Master.css';
@@ -9,6 +9,7 @@ type Supplier = Named & { isGst?: number };
 type Product = {
   id: number;
   name: string;
+  code?: string;
   cost: number;
   mrp: number;
   gst: number;
@@ -79,6 +80,11 @@ const PurchasePage: React.FC = () => {
   const [historyName, setHistoryName] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pending, setPending] = useState<Product | null>(null);
+  const [addQty, setAddQty] = useState('1');
+  const [addCost, setAddCost] = useState('');
+  const qtyRef = useRef<HTMLInputElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     inventoryApi.lookups().then((res) => {
@@ -90,7 +96,7 @@ const PurchasePage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (search.trim().length < 2) {
+    if (search.trim().length < 1) {
       setHits([]);
       return;
     }
@@ -100,31 +106,93 @@ const PurchasePage: React.FC = () => {
     return () => clearTimeout(t);
   }, [search]);
 
+  useEffect(() => {
+    if (!pending) return;
+    requestAnimationFrame(() => {
+      qtyRef.current?.focus();
+      qtyRef.current?.select();
+    });
+  }, [pending]);
+
+  const openAdd = (product: Product) => {
+    setPending(product);
+    setAddQty('1');
+    setAddCost(String(product.cost ?? 0));
+    setSearch('');
+    setHits([]);
+  };
+
+  const confirmAdd = () => {
+    if (!pending) return;
+    if (!(n(addQty) > 0)) {
+      toast.warning('Enter quantity');
+      return;
+    }
+    if (addCost.trim() === '' || !Number.isFinite(Number(addCost))) {
+      toast.warning('Enter cost');
+      return;
+    }
+    setLines((prev) => [
+      ...prev,
+      {
+        key,
+        productId: pending.id,
+        name: pending.name,
+        qty: addQty,
+        free: '0',
+        cost: String(n(addCost)),
+        mrp: String(pending.mrp ?? 0),
+        disc: '0',
+        tax: String(pending.gst ?? 0),
+        convertionCalc: pending.convertionCalculation || 1,
+      },
+    ]);
+    setKey((k) => k + 1);
+    setPending(null);
+    setAddQty('1');
+    setAddCost('');
+    setTimeout(() => searchRef.current?.focus(), 0);
+  };
+
+  const addByCode = async (code: string) => {
+    const product = invData<Product | null>(await inventoryApi.productByCode(code));
+    if (!product) return false;
+    openAdd(product);
+    return true;
+  };
+
+  const addByName = async (name: string) => {
+    const product = invData<Product | null>(await inventoryApi.productByName(name));
+    if (!product) return false;
+    openAdd(product);
+    return true;
+  };
+
   const addProduct = async (name: string) => {
     try {
-      const product = invData<Product>(await inventoryApi.productByName(name));
-      if (!product) {
-        toast.warning('Product not found');
+      if (await addByName(name)) return;
+      toast.warning('Product not found');
+    } catch (err) {
+      toast.error(invError(err, 'Could not add product'));
+    }
+  };
+
+  const onSearchKey = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+    e.preventDefault();
+    const val = search.trim();
+    if (!val) return;
+    try {
+      const labeled = val.match(/^(.+?)\s+-\s+(.+)$/);
+      if (labeled) {
+        if (!(await addByCode(labeled[1].trim()))) toast.error(`Product not found: ${labeled[1].trim()}`);
         return;
       }
-      setLines((prev) => [
-        ...prev,
-        {
-          key,
-          productId: product.id,
-          name: product.name,
-          qty: '1',
-          free: '0',
-          cost: String(product.cost ?? 0),
-          mrp: String(product.mrp ?? 0),
-          disc: '0',
-          tax: String(product.gst ?? 0),
-          convertionCalc: product.convertionCalculation || 1,
-        },
-      ]);
-      setKey((k) => k + 1);
-      setSearch('');
-      setHits([]);
+      if (await addByCode(val)) return;
+      const name = hits[0] || val;
+      if (await addByName(name)) return;
+      if (name !== val && (await addByName(val))) return;
+      toast.error(`Product not found: ${val}`);
     } catch (err) {
       toast.error(invError(err, 'Could not add product'));
     }
@@ -268,13 +336,12 @@ const PurchasePage: React.FC = () => {
           <div className="pos-fg" style={{ flex: 1 }}>
             <span className="pos-lbl">Add Item</span>
             <input
+              ref={searchRef}
               className="pos-inp"
-              placeholder="Search product name..."
+              placeholder="Code / Item Name"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && hits[0]) addProduct(hits[0]);
-              }}
+              onKeyDown={onSearchKey}
             />
             {hits.length > 0 && (
               <div className="pos-suggest">
@@ -286,6 +353,56 @@ const PurchasePage: React.FC = () => {
           </div>
         </div>
       </div>
+      {pending && (
+        <div className="pos-modal-back" onClick={() => setPending(null)}>
+          <div className="pos-modal pos-save-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pos-modal-head">
+              <h4>Add Item</h4>
+              <button className="pos-btn pos-btn-outline" type="button" onClick={() => setPending(null)}>Close</button>
+            </div>
+            <div className="mst-note" style={{ marginBottom: 12 }}>
+              {pending.code ? `${pending.code} — ` : ''}{pending.name}
+            </div>
+            <div className="pos-row" style={{ marginBottom: 12 }}>
+              <div className="pos-fg" style={{ minWidth: 120 }}>
+                <span className="pos-lbl">Qty</span>
+                <input
+                  ref={qtyRef}
+                  className="pos-inp pos-inp-lg"
+                  type="number"
+                  min="0.001"
+                  step="0.001"
+                  value={addQty}
+                  onChange={(e) => setAddQty(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && confirmAdd()}
+                />
+              </div>
+              <div className="pos-fg" style={{ minWidth: 140 }}>
+                <span className="pos-lbl">Cost</span>
+                <input
+                  className="pos-inp pos-inp-lg"
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  value={addCost}
+                  onChange={(e) => setAddCost(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && confirmAdd()}
+                />
+              </div>
+              <div className="pos-fg" style={{ minWidth: 140 }}>
+                <span className="pos-lbl">MRP</span>
+                <input className="pos-inp" readOnly value={money(n(pending.mrp))} />
+              </div>
+            </div>
+            <div className="pos-acts">
+              <button className="pos-btn" type="button" onClick={confirmAdd}>
+                <i className="fas fa-plus" /> ADD
+              </button>
+              <button className="pos-btn pos-btn-outline" type="button" onClick={() => setPending(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="mst-table-wrap" style={{ flex: 1, margin: '6px 10px', background: 'var(--color-bg-surface)', borderRadius: 7 }}>
         <table className="mst-table">
           <thead>

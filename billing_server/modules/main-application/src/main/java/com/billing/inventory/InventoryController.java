@@ -54,6 +54,11 @@ public class InventoryController {
         return ok(inventoryService.productByName(name));
     }
 
+    @GetMapping("/products/by-code")
+    public ResponseDO productByCode(@RequestParam String code) {
+        return ok(inventoryService.productByCode(code));
+    }
+
     @GetMapping("/products/history")
     public ResponseDO history(@RequestParam String name) {
         return ok(inventoryService.productHistory(name));

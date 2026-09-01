@@ -4,24 +4,23 @@ import { adminApi, adminData, adminError } from '../../../api/admin/admin-api-se
 import { billingApi } from '../../../api/billing/billing-api-service';
 import '../master/Master.css';
 import '../credit/Credit.css';
+import '../BillingPage.css';
 
 type Item = { detailId: number; prodId: number; productName: string; qty: number; price: number; disc: number; total: number; isExchanged: number };
 type Bill = { billId: number; billNo: string; customerId: number; cusName: string; total: string; payable: string; paid: string; billDate: string; items: Item[] };
 type Hit = { id: number; name: string; phone?: string; mrp?: number; code?: string };
 
+const missingCustomer = (id?: number | null) => !id || Number(id) <= 1;
+
 const ExchangePage: React.FC = () => {
   const [billNo, setBillNo] = useState('');
   const [bill, setBill] = useState<Bill | null>(null);
   const [needCustomer, setNeedCustomer] = useState(false);
+  const [custOpen, setCustOpen] = useState(false);
   const [custName, setCustName] = useState('');
   const [custPhone, setCustPhone] = useState('');
   const [custId, setCustId] = useState(0);
   const [custHits, setCustHits] = useState<Hit[]>([]);
-  const [exItem, setExItem] = useState<Item | null>(null);
-  const [prodTerm, setProdTerm] = useState('');
-  const [prodHits, setProdHits] = useState<Hit[]>([]);
-  const [newProdId, setNewProdId] = useState(0);
-  const [newPrice, setNewPrice] = useState('');
   const [retItem, setRetItem] = useState<Item | null>(null);
   const [retQty, setRetQty] = useState('');
   const [busy, setBusy] = useState(false);
@@ -33,9 +32,19 @@ const ExchangePage: React.FC = () => {
     try {
       const data = adminData<Bill>(await adminApi.exchangeBill(no.trim()));
       setBill(data);
-      setNeedCustomer(Number(data.customerId) === 1);
+      const missing = missingCustomer(data.customerId);
+      setNeedCustomer(missing);
+      setCustOpen(missing);
+      if (missing) {
+        setCustName('');
+        setCustPhone('');
+        setCustId(0);
+        setCustHits([]);
+      }
     } catch (err) {
       setBill(null);
+      setNeedCustomer(false);
+      setCustOpen(false);
       toast.error(adminError(err, 'Bill not found'));
     } finally {
       setBusy(false);
@@ -43,6 +52,10 @@ const ExchangePage: React.FC = () => {
   };
 
   const searchCust = (query?: string, phone?: string) => {
+    if ((!query || query.length < 1) && (!phone || phone.length < 2)) {
+      setCustHits([]);
+      return;
+    }
     if (timer.current) window.clearTimeout(timer.current);
     timer.current = window.setTimeout(async () => {
       try {
@@ -54,21 +67,11 @@ const ExchangePage: React.FC = () => {
     }, 250);
   };
 
-  const searchProd = (term: string) => {
-    setProdTerm(term);
-    setNewProdId(0);
-    if (timer.current) window.clearTimeout(timer.current);
-    if (!term.trim()) {
-      setProdHits([]);
-      return;
-    }
-    timer.current = window.setTimeout(async () => {
-      try {
-        setProdHits(adminData<Hit[]>(await adminApi.exchangeProducts(term.trim())) || []);
-      } catch {
-        setProdHits([]);
-      }
-    }, 250);
+  const pickCustomer = (c: Hit) => {
+    setCustId(c.id);
+    setCustName(c.name);
+    setCustPhone(c.phone && c.phone !== '-' ? c.phone : '');
+    setCustHits([]);
   };
 
   const assign = async () => {
@@ -86,32 +89,10 @@ const ExchangePage: React.FC = () => {
       }));
       toast.success(res.message || 'Customer updated');
       setNeedCustomer(false);
+      setCustOpen(false);
       await load(bill.billNo);
     } catch (err) {
       toast.error(adminError(err, 'Could not assign customer'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const saveExchange = async () => {
-    if (!bill || !exItem || !newProdId || !(parseFloat(newPrice) > 0)) {
-      toast.warning('Select a product and enter a price greater than zero');
-      return;
-    }
-    setBusy(true);
-    try {
-      const msg = adminData<string>(await adminApi.saveExchange({
-        billNo: bill.billNo,
-        detailId: exItem.detailId,
-        newProdId,
-        newPrice: parseFloat(newPrice),
-      }));
-      toast.success(msg);
-      setExItem(null);
-      await load(bill.billNo);
-    } catch (err) {
-      toast.error(adminError(err, 'Exchange failed'));
     } finally {
       setBusy(false);
     }
@@ -157,34 +138,71 @@ const ExchangePage: React.FC = () => {
         {bill && (
           <div className="mst-card-b" style={{ paddingTop: 0 }}>
             <div className="mst-note">Customer: <strong>{bill.cusName}</strong> | Total: ₹{bill.total} | Payable: ₹{bill.payable} | Date: {bill.billDate}</div>
-            {needCustomer && <div className="mst-block">Customer not assigned — update the customer before exchange or return.</div>}
+            {needCustomer && (
+              <div className="mst-block">
+                Customer not assigned — update the customer before exchange or return.
+                <button className="mst-btn mst-btn-primary" type="button" style={{ marginLeft: 10 }} onClick={() => setCustOpen(true)}>
+                  Assign Customer
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {needCustomer && bill && (
-        <div className="mst-card" style={{ marginBottom: 12, maxWidth: 520 }}>
-          <div className="mst-card-h">Assign Customer</div>
-          <div className="mst-card-b mst-form one-col">
-            <div className="mst-fg crd-search-wrap">
-              <label>Customer Name <span className="req">*</span></label>
-              <input className="mst-inp" value={custName} onChange={(e) => { setCustName(e.target.value); setCustId(0); searchCust(e.target.value); }} />
-              {custHits.length > 0 && (
-                <ul className="crd-dropdown">
-                  {custHits.map((c) => (
-                    <li key={c.id} onClick={() => { setCustId(c.id); setCustName(c.name); setCustPhone(c.phone && c.phone !== '-' ? c.phone : ''); setCustHits([]); }}>
-                      {c.name}{c.phone && c.phone !== '-' ? ` — ${c.phone}` : ''}
-                    </li>
-                  ))}
-                </ul>
-              )}
+      {needCustomer && bill && custOpen && (
+        <div className="pos-modal-back">
+          <div className="pos-modal pos-save-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pos-modal-head">
+              <h4>Assign Customer — Bill #{bill.billNo}</h4>
+              <button className="pos-btn pos-btn-outline" type="button" onClick={() => setCustOpen(false)}>Close</button>
             </div>
-            <div className="mst-fg">
-              <label>Phone Number</label>
-              <input className="mst-inp" value={custPhone} onChange={(e) => { setCustPhone(e.target.value); if (/^\d+$/.test(e.target.value)) searchCust(undefined, e.target.value); }} />
+            <div className="mst-note" style={{ marginBottom: 12 }}>
+              This bill has no customer. Select an existing customer, or type a new name and phone to add one — same as billing.
             </div>
-            <div className="mst-actions">
-              <button className="mst-btn mst-btn-primary" type="button" disabled={busy} onClick={assign}>Update & Continue</button>
+            <div className="pos-row" style={{ marginBottom: 12 }}>
+              <div className="pos-fg" style={{ flex: 1.6, minWidth: 160 }}>
+                <span className="pos-lbl">Customer Name <span className="req">*</span></span>
+                <input
+                  className="pos-inp pos-inp-lg"
+                  value={custName}
+                  placeholder="Customer name"
+                  onChange={(e) => {
+                    setCustName(e.target.value);
+                    setCustId(0);
+                    searchCust(e.target.value);
+                  }}
+                />
+                {custHits.length > 0 && (
+                  <div className="pos-suggest">
+                    {custHits.map((c) => (
+                      <button key={c.id} type="button" onClick={() => pickCustomer(c)}>
+                        {c.name} {c.phone && c.phone !== '-' ? `· ${c.phone}` : ''}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="pos-fg" style={{ flex: 1, minWidth: 140 }}>
+                <span className="pos-lbl">Phone No</span>
+                <input
+                  className="pos-inp pos-inp-lg"
+                  value={custPhone}
+                  placeholder="Phone number"
+                  onChange={(e) => {
+                    setCustPhone(e.target.value);
+                    searchCust(undefined, e.target.value);
+                  }}
+                />
+              </div>
+            </div>
+            {custId > 0 && <div className="pos-banner" style={{ marginBottom: 12 }}>Existing customer selected</div>}
+            {custId <= 0 && custName.trim() !== '' && <div className="mst-note" style={{ marginBottom: 12 }}>New customer will be created on save.</div>}
+            <div className="pos-acts">
+              <button className="pos-btn" type="button" disabled={busy} onClick={assign}>
+                {custId > 0 ? 'Assign Customer' : 'Add & Assign Customer'}
+              </button>
+              <button className="pos-btn pos-btn-outline" type="button" onClick={() => setCustOpen(false)}>Cancel</button>
             </div>
           </div>
         </div>
@@ -215,14 +233,9 @@ const ExchangePage: React.FC = () => {
                       </td>
                       <td>
                         {exchanged || returned ? '—' : (
-                          <>
-                            <button className="mst-icon-btn" type="button" disabled={needCustomer} onClick={() => { setExItem(item); setProdTerm(''); setProdHits([]); setNewProdId(0); setNewPrice(''); }}>
-                              <i className="fas fa-exchange-alt" /> Exchange
-                            </button>
-                            <button className="mst-icon-btn" type="button" disabled={needCustomer} onClick={() => { setRetItem(item); setRetQty(String(item.qty)); }}>
-                              <i className="fas fa-undo" /> Return
-                            </button>
-                          </>
+                          <button className="mst-icon-btn" type="button" disabled={needCustomer} onClick={() => { setRetItem(item); setRetQty(String(item.qty)); }}>
+                            <i className="fas fa-undo" /> Return
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -230,38 +243,6 @@ const ExchangePage: React.FC = () => {
                 })}
               </tbody>
             </table>
-          </div>
-        </div>
-      )}
-
-      {exItem && bill && (
-        <div className="crd-modal" onClick={() => setExItem(null)}>
-          <div className="crd-modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="mst-card-h">Exchange Item</div>
-            <div className="mst-card-b mst-form one-col">
-              <div className="mst-note">Replacing: <strong>{exItem.productName}</strong> | Qty {exItem.qty} | Total ₹{exItem.total}</div>
-              <div className="mst-fg crd-search-wrap">
-                <label>New Product <span className="req">*</span></label>
-                <input className="mst-inp" value={prodTerm} onChange={(e) => searchProd(e.target.value)} placeholder="Type product name…" />
-                {prodHits.length > 0 && (
-                  <ul className="crd-dropdown">
-                    {prodHits.map((p) => (
-                      <li key={p.id} onClick={() => { setNewProdId(p.id); setProdTerm(p.name); setNewPrice(String(p.mrp || '')); setProdHits([]); }}>
-                        {p.name}{p.code ? ` (${p.code})` : ''} {p.mrp ? ` — ₹${p.mrp}` : ''}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <div className="mst-fg">
-                <label>New Price (₹) <span className="req">*</span></label>
-                <input className="mst-inp" type="number" min="0" step="0.01" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} />
-              </div>
-              <div className="mst-actions">
-                <button className="mst-btn mst-btn-outline" type="button" onClick={() => setExItem(null)}>Cancel</button>
-                <button className="mst-btn mst-btn-primary" type="button" disabled={busy} onClick={saveExchange}>Confirm Exchange</button>
-              </div>
-            </div>
           </div>
         </div>
       )}

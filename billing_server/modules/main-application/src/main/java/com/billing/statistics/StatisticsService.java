@@ -31,21 +31,24 @@ public class StatisticsService {
         if (billWise) {
             List<Map<String, Object>> rows = jdbcTemplate.query(
                     "SELECT a.bill_display, a.date, IFNULL(a.cusName,'-') AS cusName, "
-                            + "SUM(bd.cost * bd.qty) AS total_cost, a.payable "
+                            + "SUM(CASE WHEN IFNULL(bd.is_cancelled,0)=0 AND IFNULL(bd.is_exchanged,0)<>2 "
+                            + "THEN bd.cost * bd.qty ELSE 0 END) AS total_cost, "
+                            + "SUM(CASE WHEN IFNULL(bd.is_cancelled,0)=0 AND IFNULL(bd.is_exchanged,0)<>2 "
+                            + "THEN bd.total ELSE 0 END) AS sale_total "
                             + "FROM prod_bill a JOIN prod_bill_details bd ON a.id = bd.bill_id "
                             + "WHERE a.date BETWEEN ? AND ? AND a.is_cancelled = 0 "
-                            + "GROUP BY a.id, a.bill_display, a.date, a.cusName, a.payable "
+                            + "GROUP BY a.id, a.bill_display, a.date, a.cusName "
                             + "ORDER BY a.date DESC, a.id DESC",
                     (rs, i) -> {
                         double cost = rs.getDouble("total_cost");
-                        double payable = rs.getDouble("payable");
-                        double profit = payable - cost;
+                        double sale = rs.getDouble("sale_total");
+                        double profit = sale - cost;
                         Map<String, Object> row = new LinkedHashMap<>();
                         row.put("billNo", rs.getString("bill_display"));
                         row.put("date", asStr(rs.getObject("date")));
                         row.put("customer", rs.getString("cusName"));
                         row.put("cost", cost);
-                        row.put("sale", payable);
+                        row.put("sale", sale);
                         row.put("profit", profit);
                         row.put("margin", cost > 0 ? (profit / cost) * 100 : 0);
                         return row;
@@ -60,6 +63,7 @@ public class StatisticsService {
                             + "FROM prod_bill a JOIN prod_bill_details bd ON a.id = bd.bill_id "
                             + "JOIN prod_product p ON bd.prod_id = p.id "
                             + "WHERE a.date BETWEEN ? AND ? AND a.is_cancelled = 0 "
+                            + "AND IFNULL(bd.is_cancelled, 0) = 0 AND IFNULL(bd.is_exchanged, 0) <> 2 "
                             + "ORDER BY a.date DESC, a.bill_display",
                     (rs, i) -> {
                         double cost = rs.getDouble("total_cost");
@@ -433,7 +437,8 @@ public class StatisticsService {
     private double productProfit(String from, String to) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                 "SELECT bd.cost, bd.qty, bd.total FROM prod_bill a JOIN prod_bill_details bd ON a.id = bd.bill_id "
-                        + "WHERE a.date BETWEEN ? AND ? AND a.is_cancelled = 0",
+                        + "WHERE a.date BETWEEN ? AND ? AND a.is_cancelled = 0 "
+                        + "AND IFNULL(bd.is_cancelled, 0) = 0 AND IFNULL(bd.is_exchanged, 0) <> 2",
                 from, to
         );
         double profit = 0;

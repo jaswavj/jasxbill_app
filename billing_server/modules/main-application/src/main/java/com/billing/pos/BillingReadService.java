@@ -52,10 +52,12 @@ public class BillingReadService {
     }
 
     public List<String> searchProductNames(String term) {
+        String like = "%" + term + "%";
         return jdbcTemplate.query(
-                "SELECT name FROM prod_product WHERE is_active = 1 AND name LIKE ? ORDER BY name LIMIT 20",
+                "SELECT name FROM prod_product WHERE is_active = 1 AND (name LIKE ? OR CAST(code AS CHAR) LIKE ?) " +
+                        "ORDER BY CASE WHEN CAST(code AS CHAR) = ? THEN 0 WHEN CAST(code AS CHAR) LIKE ? THEN 1 ELSE 2 END, name LIMIT 20",
                 (rs, i) -> rs.getString("name"),
-                "%" + term + "%"
+                like, like, term, term + "%"
         );
     }
 

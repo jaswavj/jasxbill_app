@@ -462,7 +462,8 @@ public class AdminService {
             throw new RuntimeException("Please select a valid customer.");
         }
         int updated = jdbcTemplate.update(
-                "UPDATE prod_bill SET customerId = ?, cusName = ?, cusPhn = ? WHERE id = ? AND is_cancelled = 0 AND customerId = 1",
+                "UPDATE prod_bill SET customerId = ?, cusName = ?, cusPhn = ? WHERE id = ? AND is_cancelled = 0 " +
+                        "AND (customerId IS NULL OR customerId <= 1)",
                 customerId, cusName, cusPhn, request.getBillId()
         );
         if (updated == 0) {
@@ -518,7 +519,7 @@ public class AdminService {
         if (billId != fetchedBillId) {
             throw new RuntimeException("Bill / detail mismatch.");
         }
-        if (customerId == 1) {
+        if (customerId <= 1) {
             throw new RuntimeException("Please assign the actual customer to this bill before exchange.");
         }
         double newItemTotal = scale(BigDecimal.valueOf(newPrice).multiply(qty));
@@ -644,7 +645,7 @@ public class AdminService {
         if (billId != fetchedBillId) {
             throw new RuntimeException("Bill / detail mismatch.");
         }
-        if (customerId == 1) {
+        if (customerId <= 1) {
             throw new RuntimeException("Please assign the actual customer to this bill before return.");
         }
         Long batchId = latestBatch(prodId);

@@ -34,7 +34,7 @@ public class StockReportService {
                         + "IFNULL(u.name,'') AS unit_name, b.category_id, IFNULL(c.name,'') AS category_name, IFNULL(u.convertion_unit,'') AS convertion_unit "
                         + "FROM prod_batch a JOIN prod_product b ON b.id = a.product_id "
                         + "LEFT JOIN prod_units u ON u.id = b.unit_id LEFT JOIN prod_category c ON c.id = b.category_id "
-                        + "WHERE a.stock > 0 ORDER BY CAST(SUBSTRING(b.code, 2) AS UNSIGNED)",
+                        + "WHERE a.stock > 0 AND IFNULL(b.is_active, 0) = 1 ORDER BY CAST(SUBSTRING(b.code, 2) AS UNSIGNED)",
                 (rs, i) -> {
                     double stock = rs.getDouble("stock");
                     double cost = rs.getDouble("cost");
