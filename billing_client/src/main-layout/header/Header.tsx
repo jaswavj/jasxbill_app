@@ -14,7 +14,7 @@ import { useSidebar } from '../../context/SidebarContext'
 import { defaultAppPath } from '../../billing/config/menu.config'
 import { authLogout } from '../../login/components/state/loginSlice'
 import { routerPathNames } from '../../routes/routerPathNames'
-import { routerBaseUrl } from '../../billingConfig'
+import { appHref } from '../../billingConfig'
 import billingConfig from '../../billingConfig'
 import { useThemeMode } from '../../theme/ThemeRoot'
 import './header.css'
@@ -49,7 +49,7 @@ const Header = () => {
 
     const handleLogout = () => {
         dispatch(authLogout())
-        window.location.href = routerBaseUrl + '/login'
+        window.location.href = appHref('/login')
     }
 
     return (

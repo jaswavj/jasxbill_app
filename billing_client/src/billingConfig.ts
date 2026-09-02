@@ -1,6 +1,12 @@
 const isDev: boolean = import.meta.env.DEV;
 
-let routerBaseUrl = '/billing';
+// Empty at domain root. Do not use '/' — '/' + '/login' becomes '//login' (https://login/).
+let routerBaseUrl = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const appHref = (path: string) => {
+  const p = path.startsWith('/') ? path : `/${path}`;
+  return `${routerBaseUrl}${p}`;
+};
 
 const envApi = import.meta.env.VITE_API_BASE_URL;
 const apiBaseName =
@@ -15,6 +21,6 @@ const billingConfig = {
   appName: import.meta.env.VITE_APP_NAME || 'JASXBILL',
 };
 
-export { routerBaseUrl, isDev };
+export { routerBaseUrl, appHref, isDev };
 
 export default billingConfig;

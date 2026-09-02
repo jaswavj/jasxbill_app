@@ -404,7 +404,7 @@ const PurchasePage: React.FC = () => {
         </div>
       )}
       <div className="mst-table-wrap" style={{ flex: 1, margin: '6px 10px', background: 'var(--color-bg-surface)', borderRadius: 7 }}>
-        <table className="mst-table">
+        <table className="mst-table mst-table-wide">
           <thead>
             <tr>
               <th></th>

@@ -33,6 +33,7 @@
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.07);
   overflow: hidden;
+  min-width: 0;
 }
 
 .mst-card:has(.crd-dropdown) {
@@ -182,13 +183,27 @@
 
 .mst-table-wrap {
   max-height: 62vh;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .mst-table {
   width: 100%;
+  min-width: 860px;
   border-collapse: collapse;
   font-size: 0.85rem;
+}
+
+.mst-table-wide {
+  min-width: 1200px;
+}
+
+.mst-table .mst-inp,
+.mst-table .mst-sel {
+  min-width: 80px;
 }
 
 .mst-table th,

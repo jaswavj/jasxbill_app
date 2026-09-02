@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import billingConfig, { routerBaseUrl } from '../billingConfig';
+import billingConfig, { appHref } from '../billingConfig';
 import { StorageService } from './storage/storageService';
 import { store } from '../state/store';
 import { authLogout } from '../login/components/state/loginSlice';
@@ -43,7 +43,7 @@ class ApiConfig {
                     if (!isHandlingUnauthorized) {
                         isHandlingUnauthorized = true;
                         store.dispatch(authLogout());
-                        window.location.href = routerBaseUrl + '/login';
+                        window.location.href = appHref('/login');
                     }
                 }
                 return Promise.reject(error);
