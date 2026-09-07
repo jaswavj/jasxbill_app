@@ -500,7 +500,7 @@ public class AccountReportService {
                         + "a.gst / 2 AS cgst_percent, SUM((a.total / (1 + a.gst / 100)) * a.gst / 200) AS cgst_amount, "
                         + "SUM((a.total / (1 + a.gst / 100)) * a.gst / 100) AS total_gst, SUM(a.total) AS total, SUM(a.total) AS invoice_total "
                         + "FROM prod_bill_details a JOIN prod_bill b ON a.bill_id = b.id "
-                        + "WHERE b.is_cancelled = 0 AND a.is_cancelled = 0 AND b.date BETWEEN ? AND ? "
+                        + "WHERE b.is_cancelled = 0 AND a.is_cancelled = 0 AND IFNULL(b.is_tax_bill, 0) = 1 AND b.date BETWEEN ? AND ? "
                         + "GROUP BY a.gst ORDER BY a.gst",
                 (rs, i) -> gstSummaryRow(rs),
                 fromDate, toDate
@@ -520,7 +520,7 @@ public class AccountReportService {
                         + "SUM(bd.total) AS invoice_value "
                         + "FROM prod_bill b JOIN prod_bill_details bd ON b.id = bd.bill_id "
                         + "LEFT JOIN customers c ON b.customerId = c.id "
-                        + "WHERE b.date BETWEEN ? AND ? AND b.is_cancelled = 0 AND bd.is_cancelled = 0 "
+                        + "WHERE b.date BETWEEN ? AND ? AND b.is_cancelled = 0 AND bd.is_cancelled = 0 AND IFNULL(b.is_tax_bill, 0) = 1 "
                         + "GROUP BY b.id, b.bill_display, b.date, b.cusName, c.gstin "
                         + "ORDER BY b.date DESC, b.bill_display",
                 (rs, i) -> {
@@ -552,7 +552,7 @@ public class AccountReportService {
                         + "(bd.total - bd.total / (1 + bd.gst / 100)) / 2 AS sgst, "
                         + "(bd.total - bd.total / (1 + bd.gst / 100)) AS total_gst "
                         + "FROM prod_bill b JOIN prod_bill_details bd ON b.id = bd.bill_id JOIN prod_product p ON bd.prod_id = p.id "
-                        + "WHERE b.date BETWEEN ? AND ? AND b.is_cancelled = 0 AND bd.is_cancelled = 0 "
+                        + "WHERE b.date BETWEEN ? AND ? AND b.is_cancelled = 0 AND bd.is_cancelled = 0 AND IFNULL(b.is_tax_bill, 0) = 1 "
                         + "ORDER BY b.date DESC, b.bill_display, p.name",
                 (rs, i) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
@@ -588,7 +588,7 @@ public class AccountReportService {
                         + "SUM(bd.total - bd.total / (1 + bd.gst / 100)) AS total_gst, "
                         + "SUM(bd.total) AS total_value "
                         + "FROM prod_bill b JOIN prod_bill_details bd ON b.id = bd.bill_id JOIN prod_product p ON bd.prod_id = p.id "
-                        + "WHERE b.date BETWEEN ? AND ? AND b.is_cancelled = 0 AND bd.is_cancelled = 0 "
+                        + "WHERE b.date BETWEEN ? AND ? AND b.is_cancelled = 0 AND bd.is_cancelled = 0 AND IFNULL(b.is_tax_bill, 0) = 1 "
                         + "GROUP BY CASE WHEN p.hsn IS NULL OR p.hsn = 0 THEN 'N/A' ELSE CAST(p.hsn AS CHAR) END, bd.gst "
                         + "ORDER BY hsn_code, bd.gst",
                 (rs, i) -> {
