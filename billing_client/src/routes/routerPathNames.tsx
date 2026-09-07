@@ -50,6 +50,7 @@ export const routerPathNames = {
     gstHsn: '/app/account-reports/gst-hsn',
     gstPurchase: '/app/account-reports/gst-purchase',
     gstPurchaseSummary: '/app/account-reports/gst-purchase-summary',
+    gstr1: '/app/account-reports/gstr1',
   },
   credit: {
     customerBalance: '/app/credit/customer-balance',

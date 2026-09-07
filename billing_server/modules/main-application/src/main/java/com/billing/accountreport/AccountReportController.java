@@ -115,6 +115,11 @@ public class AccountReportController {
         return ok(accountReportService.gstHsn(from, to));
     }
 
+    @GetMapping("/gst/gstr1")
+    public ResponseDO gstr1(@RequestParam String from, @RequestParam String to) {
+        return ok(accountReportService.gstr1(from, to));
+    }
+
     @GetMapping("/gst/purchase")
     public ResponseDO gstPurchase(@RequestParam String from, @RequestParam String to) {
         return ok(accountReportService.gstPurchase(from, to));

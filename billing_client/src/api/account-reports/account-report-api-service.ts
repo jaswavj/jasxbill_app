@@ -49,6 +49,8 @@ export class AccountReportApiService {
     this.http.get(`/v1/account-reports/gst/item-wise?from=${from}&to=${to}`);
   gstHsn = (from: string, to: string) =>
     this.http.get(`/v1/account-reports/gst/hsn?from=${from}&to=${to}`);
+  gstr1 = (from: string, to: string) =>
+    this.http.get(`/v1/account-reports/gst/gstr1?from=${from}&to=${to}`);
   gstPurchase = (from: string, to: string) =>
     this.http.get(`/v1/account-reports/gst/purchase?from=${from}&to=${to}`);
   gstPurchaseSummary = (from: string, to: string) =>

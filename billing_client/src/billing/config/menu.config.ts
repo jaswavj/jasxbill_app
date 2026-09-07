@@ -145,6 +145,7 @@ export const billingMenuConfig: MenuItemConfig[] = [
         name: 'GST Reports',
         icon: 'fas fa-calculator',
         submenus: [
+          { id: 'gstr1', name: 'GSTR-1', url: routerPathNames.accountReports.gstr1, icon: 'fas fa-file-alt' },
           { id: 'gst-sales-summary', name: 'Sales Summary', url: routerPathNames.accountReports.gstSalesSummary, icon: 'fas fa-file-invoice' },
           { id: 'gst-bill-wise', name: 'Bill Wise Sales GST', url: routerPathNames.accountReports.gstBillWise, icon: 'fas fa-receipt' },
           { id: 'gst-item-wise', name: 'Item Wise Sales GST', url: routerPathNames.accountReports.gstItemWise, icon: 'fas fa-list' },

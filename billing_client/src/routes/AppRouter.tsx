@@ -75,6 +75,7 @@ const GstItemWisePage = lazy(() => import('../billing/pages/account-reports/GstI
 const GstHsnPage = lazy(() => import('../billing/pages/account-reports/GstHsnPage'));
 const GstPurchasePage = lazy(() => import('../billing/pages/account-reports/GstPurchasePage'));
 const GstPurchaseSummaryPage = lazy(() => import('../billing/pages/account-reports/GstPurchaseSummaryPage'));
+const Gstr1Page = lazy(() => import('../billing/pages/account-reports/Gstr1Page'));
 
 const guard = (element: ReactElement) => <AuthGuard component={element} />;
 
@@ -138,6 +139,7 @@ const AppRouter = () => {
               <Route path="account-reports/gst-hsn" element={<GstHsnPage />} />
               <Route path="account-reports/gst-purchase" element={<GstPurchasePage />} />
               <Route path="account-reports/gst-purchase-summary" element={<GstPurchaseSummaryPage />} />
+              <Route path="account-reports/gstr1" element={<Gstr1Page />} />
               <Route path="credit/customer-balance" element={<CustomerBalancePage />} />
               <Route path="credit/supplier-payment" element={<SupplierPaymentPage />} />
               <Route path="users/create" element={<CreateUserPage />} />

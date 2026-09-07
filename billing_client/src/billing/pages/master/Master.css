@@ -301,3 +301,14 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media print {
+  .gstr1-filters {
+    display: none;
+  }
+
+  .gstr1-page .mst-card {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+}

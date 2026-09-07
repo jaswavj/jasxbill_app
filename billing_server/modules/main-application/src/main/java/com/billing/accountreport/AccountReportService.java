@@ -657,6 +657,336 @@ public class AccountReportService {
         );
     }
 
+    public Map<String, Object> gstr1(String from, String to) {
+        String fromDate = required(from, "From date is required");
+        String toDate = required(to, "To date is required");
+        String companyGstin = jdbcTemplate.query(
+                "SELECT gstin FROM company_details LIMIT 1",
+                rs -> rs.next() ? nz(rs.getString(1)).trim().toUpperCase() : ""
+        );
+        String supplierState = stateCode(companyGstin, "");
+
+        String taxBill = " AND IFNULL(b.is_tax_bill, 0) = 1 AND b.is_cancelled = 0 AND bd.is_cancelled = 0 "
+                + "AND IFNULL(bd.is_exchanged, 0) <> 2 ";
+
+        List<Map<String, Object>> rateRows = jdbcTemplate.query(
+                "SELECT b.id, b.bill_display, b.date, b.payable, b.cusName, "
+                        + "UPPER(TRIM(IFNULL(c.gstin, ''))) AS gstin, IFNULL(bd.gst, 0) AS gst_rate, "
+                        + "SUM(bd.qty) AS qty, "
+                        + "SUM(bd.total / (1 + IFNULL(bd.gst, 0) / 100)) AS taxable, "
+                        + "SUM(bd.total - bd.total / (1 + IFNULL(bd.gst, 0) / 100)) AS gst_amt, "
+                        + "SUM(bd.total) AS line_total "
+                        + "FROM prod_bill b "
+                        + "JOIN prod_bill_details bd ON bd.bill_id = b.id "
+                        + "LEFT JOIN customers c ON c.id = b.customerId "
+                        + "WHERE b.date BETWEEN ? AND ? " + taxBill
+                        + "GROUP BY b.id, b.bill_display, b.date, b.payable, b.cusName, "
+                        + "UPPER(TRIM(IFNULL(c.gstin, ''))), IFNULL(bd.gst, 0) "
+                        + "ORDER BY b.date, b.bill_display, gst_rate",
+                (rs, i) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("billId", rs.getLong("id"));
+                    row.put("billNo", nz(rs.getString("bill_display")));
+                    row.put("date", asStr(rs.getObject("date")));
+                    row.put("payable", rs.getDouble("payable"));
+                    row.put("customer", nz(rs.getString("cusName")));
+                    row.put("gstin", nz(rs.getString("gstin")));
+                    row.put("rate", rs.getDouble("gst_rate"));
+                    row.put("taxable", rs.getDouble("taxable"));
+                    row.put("gstAmt", rs.getDouble("gst_amt"));
+                    row.put("lineTotal", rs.getDouble("line_total"));
+                    return row;
+                },
+                fromDate, toDate
+        );
+
+        List<Map<String, Object>> b2b = new ArrayList<>();
+        List<Map<String, Object>> b2cl = new ArrayList<>();
+        Map<String, Map<String, Object>> b2csMap = new LinkedHashMap<>();
+        double[] nil = new double[4];
+
+        for (Map<String, Object> src : rateRows) {
+            String gstin = (String) src.get("gstin");
+            boolean registered = validGstin(gstin);
+            String pos = registered ? stateCode(gstin, supplierState) : supplierState;
+            boolean inter = !pos.isEmpty() && !pos.equals(supplierState);
+            double rate = (Double) src.get("rate");
+            double taxable = (Double) src.get("taxable");
+            double gstAmt = (Double) src.get("gstAmt");
+            double[] split = splitGst(gstAmt, inter);
+
+            if (rate == 0) {
+                if (registered && inter) nil[0] += taxable;
+                else if (registered) nil[1] += taxable;
+                else if (inter) nil[2] += taxable;
+                else nil[3] += taxable;
+            }
+
+            if (registered) {
+                b2b.add(gstr1InvRow(gstin, src, pos, "Regular", rate, taxable, split));
+            } else if (inter && (Double) src.get("payable") > 100000) {
+                b2cl.add(gstr1InvRow("", src, pos, "", rate, taxable, split));
+            } else {
+                String key = pos + "|" + rate;
+                Map<String, Object> agg = b2csMap.computeIfAbsent(key, k -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("type", "OE");
+                    row.put("pos", posLabel(pos));
+                    row.put("rate", rate);
+                    row.put("taxable", 0d);
+                    row.put("igst", 0d);
+                    row.put("cgst", 0d);
+                    row.put("sgst", 0d);
+                    row.put("cess", 0d);
+                    return row;
+                });
+                agg.put("taxable", (Double) agg.get("taxable") + taxable);
+                agg.put("igst", (Double) agg.get("igst") + split[0]);
+                agg.put("cgst", (Double) agg.get("cgst") + split[1]);
+                agg.put("sgst", (Double) agg.get("sgst") + split[2]);
+            }
+        }
+
+        List<Map<String, Object>> b2cs = new ArrayList<>();
+        for (Map<String, Object> row : b2csMap.values()) {
+            roundMoney(row, "taxable", "igst", "cgst", "sgst");
+            b2cs.add(row);
+        }
+
+        List<Map<String, Object>> nilRated = new ArrayList<>();
+        nilRated.add(nilRow("Inter-State supplies to registered persons", nil[0]));
+        nilRated.add(nilRow("Intra-State supplies to registered persons", nil[1]));
+        nilRated.add(nilRow("Inter-State supplies to unregistered persons", nil[2]));
+        nilRated.add(nilRow("Intra-State supplies to unregistered persons", nil[3]));
+
+        Map<String, Map<String, Object>> hsnMap = new LinkedHashMap<>();
+        jdbcTemplate.query(
+                "SELECT CASE WHEN p.hsn IS NULL OR p.hsn = 0 THEN 'N/A' ELSE CAST(p.hsn AS CHAR) END AS hsn_code, "
+                        + "MAX(p.name) AS description, MAX(IFNULL(u.name, 'NOS')) AS uqc, IFNULL(bd.gst, 0) AS gst_rate, "
+                        + "SUM(bd.qty) AS qty, "
+                        + "SUM(bd.total / (1 + IFNULL(bd.gst, 0) / 100)) AS taxable, "
+                        + "SUM(bd.total - bd.total / (1 + IFNULL(bd.gst, 0) / 100)) AS gst_amt, "
+                        + "UPPER(TRIM(IFNULL(c.gstin, ''))) AS gstin "
+                        + "FROM prod_bill b "
+                        + "JOIN prod_bill_details bd ON bd.bill_id = b.id "
+                        + "JOIN prod_product p ON p.id = bd.prod_id "
+                        + "LEFT JOIN prod_units u ON u.id = p.unit_id "
+                        + "LEFT JOIN customers c ON c.id = b.customerId "
+                        + "WHERE b.date BETWEEN ? AND ? " + taxBill
+                        + "GROUP BY CASE WHEN p.hsn IS NULL OR p.hsn = 0 THEN 'N/A' ELSE CAST(p.hsn AS CHAR) END, "
+                        + "IFNULL(bd.gst, 0), UPPER(TRIM(IFNULL(c.gstin, '')))",
+                (rs) -> {
+                    String gstin = nz(rs.getString("gstin"));
+                    boolean registered = validGstin(gstin);
+                    String pos = registered ? stateCode(gstin, supplierState) : supplierState;
+                    boolean inter = !pos.isEmpty() && !pos.equals(supplierState);
+                    double rate = rs.getDouble("gst_rate");
+                    String hsnCode = nz(rs.getString("hsn_code"));
+                    String description = nz(rs.getString("description"));
+                    String uqc = nz(rs.getString("uqc"));
+                    double qty = rs.getDouble("qty");
+                    double taxable = rs.getDouble("taxable");
+                    double[] split = splitGst(rs.getDouble("gst_amt"), inter);
+                    String key = hsnCode + "|" + rate;
+                    Map<String, Object> agg = hsnMap.computeIfAbsent(key, k -> {
+                        Map<String, Object> row = new LinkedHashMap<>();
+                        row.put("hsn", hsnCode);
+                        row.put("description", description);
+                        row.put("uqc", uqc);
+                        row.put("qty", 0d);
+                        row.put("rate", rate);
+                        row.put("taxable", 0d);
+                        row.put("igst", 0d);
+                        row.put("cgst", 0d);
+                        row.put("sgst", 0d);
+                        row.put("cess", 0d);
+                        return row;
+                    });
+                    agg.put("qty", (Double) agg.get("qty") + qty);
+                    agg.put("taxable", (Double) agg.get("taxable") + taxable);
+                    agg.put("igst", (Double) agg.get("igst") + split[0]);
+                    agg.put("cgst", (Double) agg.get("cgst") + split[1]);
+                    agg.put("sgst", (Double) agg.get("sgst") + split[2]);
+                },
+                fromDate, toDate
+        );
+        List<Map<String, Object>> hsn = new ArrayList<>();
+        for (Map<String, Object> row : hsnMap.values()) {
+            roundMoney(row, "qty", "taxable", "igst", "cgst", "sgst");
+            hsn.add(row);
+        }
+
+        Map<String, Object> docs = jdbcTemplate.query(
+                "SELECT COUNT(*) AS issued, SUM(CASE WHEN is_cancelled = 1 THEN 1 ELSE 0 END) AS cancelled, "
+                        + "MIN(bill_display) AS sr_from, MAX(bill_display) AS sr_to "
+                        + "FROM prod_bill WHERE date BETWEEN ? AND ? AND IFNULL(is_tax_bill, 0) = 1",
+                rs -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    if (!rs.next()) {
+                        row.put("nature", "Invoices for outward supply");
+                        row.put("srFrom", "");
+                        row.put("srTo", "");
+                        row.put("total", 0);
+                        row.put("cancelled", 0);
+                        return row;
+                    }
+                    row.put("nature", "Invoices for outward supply");
+                    row.put("srFrom", nz(rs.getString("sr_from")));
+                    row.put("srTo", nz(rs.getString("sr_to")));
+                    row.put("total", rs.getLong("issued"));
+                    row.put("cancelled", rs.getLong("cancelled"));
+                    return row;
+                },
+                fromDate, toDate
+        );
+
+        Map<String, Object> totals = new LinkedHashMap<>();
+        totals.put("taxable", r2(sumKey(b2b, "taxable") + sumKey(b2cl, "taxable") + sumKey(b2cs, "taxable")));
+        totals.put("igst", r2(sumKey(b2b, "igst") + sumKey(b2cl, "igst") + sumKey(b2cs, "igst")));
+        totals.put("cgst", r2(sumKey(b2b, "cgst") + sumKey(b2cl, "cgst") + sumKey(b2cs, "cgst")));
+        totals.put("sgst", r2(sumKey(b2b, "sgst") + sumKey(b2cl, "sgst") + sumKey(b2cs, "sgst")));
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("from", fromDate);
+        data.put("to", toDate);
+        data.put("companyGstin", companyGstin);
+        data.put("totals", totals);
+        data.put("b2b", b2b);
+        data.put("b2cl", b2cl);
+        data.put("b2cs", b2cs);
+        data.put("nilRated", nilRated);
+        data.put("hsn", hsn);
+        data.put("documents", List.of(docs));
+        return data;
+    }
+
+    private Map<String, Object> gstr1InvRow(String gstin, Map<String, Object> src, String pos, String invoiceType,
+                                            double rate, double taxable, double[] split) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("gstin", gstin);
+        row.put("customer", src.get("customer"));
+        row.put("billNo", src.get("billNo"));
+        row.put("date", src.get("date"));
+        row.put("pos", posLabel(pos));
+        row.put("invoiceType", invoiceType);
+        row.put("invoiceValue", r2((Double) src.get("payable")));
+        row.put("rate", rate);
+        row.put("taxable", r2(taxable));
+        row.put("igst", r2(split[0]));
+        row.put("cgst", r2(split[1]));
+        row.put("sgst", r2(split[2]));
+        row.put("cess", 0d);
+        return row;
+    }
+
+    private Map<String, Object> nilRow(String description, double taxable) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("description", description);
+        row.put("nilRated", r2(taxable));
+        row.put("exempted", 0d);
+        row.put("nonGst", 0d);
+        return row;
+    }
+
+    private double[] splitGst(double gstAmt, boolean interState) {
+        if (interState) {
+            return new double[]{gstAmt, 0, 0};
+        }
+        return new double[]{0, gstAmt / 2.0, gstAmt / 2.0};
+    }
+
+    private boolean validGstin(String gstin) {
+        String g = nz(gstin).trim().toUpperCase();
+        if (g.length() != 15 || "NA".equals(g) || "-".equals(g)) {
+            return false;
+        }
+        for (int i = 0; i < g.length(); i++) {
+            if (!Character.isLetterOrDigit(g.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String stateCode(String gstin, String fallback) {
+        String g = nz(gstin).trim().toUpperCase();
+        if (g.length() >= 2 && Character.isDigit(g.charAt(0)) && Character.isDigit(g.charAt(1))) {
+            return g.substring(0, 2);
+        }
+        return fallback == null ? "" : fallback;
+    }
+
+    private String posLabel(String code) {
+        if (code == null || code.isBlank()) {
+            return "";
+        }
+        String name = switch (code) {
+            case "01" -> "Jammu & Kashmir";
+            case "02" -> "Himachal Pradesh";
+            case "03" -> "Punjab";
+            case "04" -> "Chandigarh";
+            case "05" -> "Uttarakhand";
+            case "06" -> "Haryana";
+            case "07" -> "Delhi";
+            case "08" -> "Rajasthan";
+            case "09" -> "Uttar Pradesh";
+            case "10" -> "Bihar";
+            case "11" -> "Sikkim";
+            case "12" -> "Arunachal Pradesh";
+            case "13" -> "Nagaland";
+            case "14" -> "Manipur";
+            case "15" -> "Mizoram";
+            case "16" -> "Tripura";
+            case "17" -> "Meghalaya";
+            case "18" -> "Assam";
+            case "19" -> "West Bengal";
+            case "20" -> "Jharkhand";
+            case "21" -> "Odisha";
+            case "22" -> "Chhattisgarh";
+            case "23" -> "Madhya Pradesh";
+            case "24" -> "Gujarat";
+            case "26" -> "Dadra & Nagar Haveli and Daman & Diu";
+            case "27" -> "Maharashtra";
+            case "29" -> "Karnataka";
+            case "30" -> "Goa";
+            case "31" -> "Lakshadweep";
+            case "32" -> "Kerala";
+            case "33" -> "Tamil Nadu";
+            case "34" -> "Puducherry";
+            case "35" -> "Andaman & Nicobar";
+            case "36" -> "Telangana";
+            case "37" -> "Andhra Pradesh";
+            case "38" -> "Ladakh";
+            case "97" -> "Other Territory";
+            default -> "Unknown";
+        };
+        return code + "-" + name;
+    }
+
+    private void roundMoney(Map<String, Object> row, String... keys) {
+        for (String key : keys) {
+            Object v = row.get(key);
+            if (v instanceof Number n) {
+                row.put(key, r2(n.doubleValue()));
+            }
+        }
+    }
+
+    private double sumKey(List<Map<String, Object>> rows, String key) {
+        double s = 0;
+        for (Map<String, Object> row : rows) {
+            Object v = row.get(key);
+            if (v instanceof Number n) {
+                s += n.doubleValue();
+            }
+        }
+        return s;
+    }
+
+    private double r2(double v) {
+        return Math.round(v * 100.0) / 100.0;
+    }
+
     private Map<String, Object> gstSummaryRow(java.sql.ResultSet rs) throws java.sql.SQLException {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("gstRate", rs.getDouble("gst_rate"));
