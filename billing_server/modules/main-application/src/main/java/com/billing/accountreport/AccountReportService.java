@@ -29,12 +29,13 @@ public class AccountReportService {
 
     private final JdbcTemplate jdbcTemplate;
 
-    public Map<String, Object> sales(String from, String to, Integer mode, Integer type, Long userId) {
+    public Map<String, Object> sales(String from, String to, Integer mode, Integer type, Long userId, Integer taxBill) {
         String fromDate = required(from, "From date is required");
         String toDate = required(to, "To date is required");
         int modeId = mode == null ? 0 : mode;
         int typeId = type == null ? 0 : type;
         long uid = userId == null ? 0 : userId;
+        int tax = taxBill == null ? 0 : taxBill;
 
         String sql = "SELECT a.bill_display, a.total, a.prodDisc + a.extraDisc AS discount, a.payable, a.paid, a.date, a.time, b.user_name, "
                 + "a.id, CASE WHEN a.paymentMode = 3 THEN CONCAT('CASH & ', MAX(d.type)) ELSE MAX(d.type) END AS pay_type, "
@@ -59,6 +60,11 @@ public class AccountReportService {
         if (uid > 0) {
             sql += "AND a.uid = ? ";
             args.add(uid);
+        }
+        if (tax == 1) {
+            sql += "AND IFNULL(a.is_tax_bill, 0) = 1 ";
+        } else if (tax == 2) {
+            sql += "AND IFNULL(a.is_tax_bill, 0) = 0 ";
         }
         sql += "GROUP BY a.id, a.bill_display, a.total, a.prodDisc, a.extraDisc, a.payable, a.paid, a.date, a.time, "
                 + "b.user_name, a.balance, a.currentBalance, a.cusName, a.cusPhn, a.paymentMode";

@@ -3,9 +3,10 @@ import HttpClientWrapper from '../http-client-wrapper';
 export class AccountReportApiService {
   private http = new HttpClientWrapper();
 
-  sales = (from: string, to: string, mode = 0, type = 0, userId = 0) => {
+  sales = (from: string, to: string, mode = 0, type = 0, userId = 0, taxBill = 0) => {
     const params = new URLSearchParams({ from, to, mode: String(mode), type: String(type) });
     if (userId) params.set('userId', String(userId));
+    if (taxBill) params.set('taxBill', String(taxBill));
     return this.http.get(`/v1/account-reports/sales?${params}`);
   };
 

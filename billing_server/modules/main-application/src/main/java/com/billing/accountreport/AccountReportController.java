@@ -23,8 +23,9 @@ public class AccountReportController {
                             @RequestParam String to,
                             @RequestParam(required = false, defaultValue = "0") Integer mode,
                             @RequestParam(required = false, defaultValue = "0") Integer type,
-                            @RequestParam(required = false, defaultValue = "0") Long userId) {
-        return ok(accountReportService.sales(from, to, mode, type, userId));
+                            @RequestParam(required = false, defaultValue = "0") Long userId,
+                            @RequestParam(required = false, defaultValue = "0") Integer taxBill) {
+        return ok(accountReportService.sales(from, to, mode, type, userId, taxBill));
     }
 
     @GetMapping("/sales-by-category")

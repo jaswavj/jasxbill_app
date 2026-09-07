@@ -22,6 +22,7 @@ const SalesReportPage: React.FC = () => {
   const [mode, setMode] = useState('0');
   const [type, setType] = useState('0');
   const [userId, setUserId] = useState('0');
+  const [taxBill, setTaxBill] = useState('0');
   const [users, setUsers] = useState<User[]>([]);
   const [bills, setBills] = useState<Bill[] | null>(null);
   const [dues, setDues] = useState<Due[]>([]);
@@ -33,7 +34,9 @@ const SalesReportPage: React.FC = () => {
 
   const search = async () => {
     try {
-      const data = accountData<{ bills: Bill[]; dues: Due[] }>(await accountApi.sales(from, to, Number(mode), Number(type), Number(userId)));
+      const data = accountData<{ bills: Bill[]; dues: Due[] }>(
+        await accountApi.sales(from, to, Number(mode), Number(type), Number(userId), Number(taxBill))
+      );
       setBills(data.bills || []);
       setDues(data.dues || []);
     } catch (err) {
@@ -75,6 +78,14 @@ const SalesReportPage: React.FC = () => {
             <select className="mst-sel" value={userId} onChange={(e) => setUserId(e.target.value)}>
               <option value="0">All Users</option>
               {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
+          <div className="mst-fg">
+            <label>GST</label>
+            <select className="mst-sel" value={taxBill} onChange={(e) => setTaxBill(e.target.value)}>
+              <option value="0">All</option>
+              <option value="1">GST</option>
+              <option value="2">Non GST</option>
             </select>
           </div>
           <div className="mst-actions"><button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button></div>
