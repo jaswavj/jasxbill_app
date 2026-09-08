@@ -344,6 +344,7 @@ const BillingPage: React.FC = () => {
     grandTotal: totals.grandTotal,
     priceTotal: totals.priceTotal,
     discountTotal: totals.discountTotal,
+    quotationId,
     products: collectProducts(),
   });
 
@@ -410,7 +411,9 @@ const BillingPage: React.FC = () => {
       const res: any = await api.saveHold(payloadBase());
       if (res?.success) {
         setHoldNo(res.data.quotNo);
+        setQuotationId(res.data.quotId || quotationId);
         toast.success(`Held as ${res.data.quotNo}`);
+        if (res.data.quotId) await printHoldDoc(res.data.quotId);
       }
     } catch (e: any) {
       toast.error(e?.response?.data?.data?.error || 'Hold failed');
@@ -423,8 +426,10 @@ const BillingPage: React.FC = () => {
     setHoldOpen(true);
   };
 
-  const loadHold = async (id: number) => {
-    const res: any = await api.holdDetails(id);
+  const dashToEmpty = (v?: string) => (!v || v === '-' ? '' : v);
+
+  const loadHold = async (row: any, mode: 'bill' | 'edit' = 'bill') => {
+    const res: any = await api.holdDetails(row.id);
     const items: any[] = res?.data || [];
     setLines(
       items.map((item, idx) => ({
@@ -446,9 +451,27 @@ const BillingPage: React.FC = () => {
       }))
     );
     setLineKey(items.length + 1);
-    setQuotationId(id);
+    setQuotationId(row.id);
+    setHoldNo(row.billDisplay || '');
+    setCustomerName(dashToEmpty(row.customerName));
+    setCustomerPhone(dashToEmpty(row.customerPhone));
+    setCustomerId(row.customerId || 0);
+    setExtraDisc(String(row.extraDiscount || 0));
     setHoldOpen(false);
-    toast.info('Hold loaded into bill');
+    toast.info(mode === 'edit' ? `Editing hold ${row.billDisplay}` : 'Hold loaded into bill');
+  };
+
+  const printHoldDoc = async (id: number) => {
+    try {
+      const res: any = await api.printHold(id);
+      if (!res?.success || !res.data) {
+        toast.error('Could not load hold print');
+        return;
+      }
+      setA4Bill(res.data);
+    } catch {
+      toast.error('Could not load hold print');
+    }
   };
 
   const openDupe = async () => {
@@ -533,6 +556,10 @@ const BillingPage: React.FC = () => {
   };
 
   const printBill = async (billNo = savedNo || dupeNo) => {
+    if (!billNo && quotationId) {
+      await printHoldDoc(quotationId);
+      return;
+    }
     if (!billNo) {
       toast.error('Save the bill first');
       return;
@@ -895,18 +922,28 @@ const BillingPage: React.FC = () => {
 
       {holdOpen && (
         <div className="pos-modal-back" onClick={() => setHoldOpen(false)}>
-          <div className="pos-modal" onClick={(e) => e.stopPropagation()}>
-            <h4>Hold List</h4>
+          <div className="pos-modal" style={{ width: 'min(980px, 100%)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="pos-modal-head">
+              <h4>Hold List</h4>
+              <button className="pos-btn pos-btn-outline" type="button" onClick={() => setHoldOpen(false)}>Close</button>
+            </div>
             <table className="pos-table">
               <thead><tr><th>No</th><th>Customer</th><th>Phone</th><th>Payable</th><th>Date</th><th></th></tr></thead>
               <tbody>
+                {holds.length === 0 && (
+                  <tr><td colSpan={6}>No holds.</td></tr>
+                )}
                 {holds.map((h) => (
                   <tr key={h.id}>
                     <td>{h.billDisplay}</td><td>{h.customerName}</td><td>{h.customerPhone}</td>
                     <td>{h.payable}</td><td>{h.date} {h.time}</td>
                     <td>
-                      <button className="pos-btn" type="button" onClick={() => loadHold(h.id)}>Bill</button>
-                      <button className="pos-btn pos-btn-outline" type="button" onClick={() => api.cancelHold(h.id).then(openHolds)}>Cancel</button>
+                      <div className="pos-acts">
+                        <button className="pos-btn" type="button" onClick={() => loadHold(h, 'edit')}>Edit</button>
+                        <button className="pos-btn pos-btn-outline" type="button" onClick={() => printHoldDoc(h.id)}>Print</button>
+                        <button className="pos-btn" type="button" onClick={() => loadHold(h, 'bill')}>Bill</button>
+                        <button className="pos-btn pos-btn-outline" type="button" onClick={() => api.cancelHold(h.id).then(openHolds)}>Cancel</button>
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -79,6 +79,11 @@ public class BillingController {
         return ok(readService.quotationDetails(id));
     }
 
+    @GetMapping("/holds/{id}/print")
+    public ResponseDO printHold(@PathVariable Long id) {
+        return ok(readService.printHold(id));
+    }
+
     @PostMapping("/holds/{id}/cancel")
     public ResponseDO cancelHold(@PathVariable Long id) {
         writeService.cancelHold(id);

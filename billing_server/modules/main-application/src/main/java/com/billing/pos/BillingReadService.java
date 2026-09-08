@@ -105,7 +105,7 @@ public class BillingReadService {
 
     public List<QuotationData> quotationList() {
         return jdbcTemplate.query(
-                "SELECT id, bill_display, cusName, cusPhn, payable, date, time " +
+                "SELECT id, bill_display, cusName, cusPhn, payable, extraDisc, customerId, date, time " +
                         "FROM prod_quotation WHERE is_cancelled = 0 AND is_billed = 0 " +
                         "ORDER BY date DESC, time DESC",
                 (rs, i) -> {
@@ -115,6 +115,8 @@ public class BillingReadService {
                     row.setCustomerName(rs.getString("cusName"));
                     row.setCustomerPhone(rs.getString("cusPhn"));
                     row.setPayable(rs.getDouble("payable"));
+                    row.setExtraDiscount(rs.getDouble("extraDisc"));
+                    row.setCustomerId(rs.getLong("customerId"));
                     row.setDate(String.valueOf(rs.getDate("date")));
                     row.setTime(String.valueOf(rs.getTime("time")));
                     return row;
@@ -264,7 +266,83 @@ public class BillingReadService {
                 billNo
         ));
         attachPayments(bill);
+        bill.setDocTitle("Tax Invoice");
+        bill.setDocNoLabel("Invoice No.");
         return bill;
+    }
+
+    public PrintBillData printHold(Long quotId) {
+        List<PrintBillData> headers = jdbcTemplate.query(
+                "SELECT q.id, q.bill_display, q.cusName, q.cusPhn, q.date, q.time, q.total, q.prodDisc, q.extraDisc, q.payable, " +
+                        "c.name AS cust_name, c.phone_number, c.address, c.gstin " +
+                        "FROM prod_quotation q LEFT JOIN customers c ON c.id = q.customerId " +
+                        "WHERE q.id = ? AND q.is_cancelled = 0",
+                (rs, i) -> {
+                    PrintBillData data = new PrintBillData();
+                    data.setBillId(rs.getLong("id"));
+                    data.setBillDisplay(rs.getString("bill_display"));
+                    String custName = nz(rs.getString("cust_name"));
+                    data.setCustomerName(custName.isEmpty() ? nz(rs.getString("cusName")) : custName);
+                    String phone = nz(rs.getString("phone_number"));
+                    data.setCustomerPhone(phone.isEmpty() ? nz(rs.getString("cusPhn")) : phone);
+                    data.setCustomerAddress(nz(rs.getString("address")));
+                    data.setCustomerGstin(nz(rs.getString("gstin")));
+                    data.setDate(String.valueOf(rs.getDate("date")));
+                    data.setTime(String.valueOf(rs.getTime("time")));
+                    data.setPriceTotal(rs.getDouble("total"));
+                    data.setProductDiscount(rs.getDouble("prodDisc"));
+                    data.setExtraDiscount(rs.getDouble("extraDisc"));
+                    data.setPayable(rs.getDouble("payable"));
+                    data.setPaid(0d);
+                    data.setBalance(rs.getDouble("payable"));
+                    return data;
+                },
+                quotId
+        );
+        if (headers.isEmpty()) {
+            throw new RuntimeException("Hold not found");
+        }
+        PrintBillData bill = headers.get(0);
+        applyCompany(bill);
+        bill.setAmountInWords(AmountInWords.from(bill.getPayable() == null ? 0 : bill.getPayable()));
+        bill.setDocTitle("Quotation");
+        bill.setDocNoLabel("Quotation No.");
+        bill.setItems(jdbcTemplate.query(
+                "SELECT p.code, p.name, d.qty, d.price, d.disc, d.total, d.gst, " +
+                        "IFNULL(cat.name,'') AS category_name, " +
+                        "CASE WHEN p.hsn IS NULL OR p.hsn = 0 THEN '' ELSE CAST(p.hsn AS CHAR) END AS hsn, " +
+                        "IFNULL(u.name,'') AS unit_name " +
+                        "FROM prod_quotation_details d JOIN prod_product p ON p.id = d.prod_id " +
+                        "LEFT JOIN prod_category cat ON cat.id = p.category_id " +
+                        "LEFT JOIN prod_units u ON u.id = p.unit_id " +
+                        "WHERE d.quot_id = ? AND d.is_cancelled = 0",
+                (rs, i) -> {
+                    PrintBillData.PrintLineData line = new PrintBillData.PrintLineData();
+                    line.setCode(rs.getString("code"));
+                    line.setName(rs.getString("name"));
+                    line.setCategoryName(nz(rs.getString("category_name")));
+                    line.setHsn(nz(rs.getString("hsn")));
+                    line.setUnitName(nz(rs.getString("unit_name")));
+                    line.setQty(rs.getDouble("qty"));
+                    line.setPrice(rs.getDouble("price"));
+                    line.setDiscount(rs.getDouble("disc"));
+                    line.setTotal(rs.getDouble("total"));
+                    line.setGst(rs.getInt("gst"));
+                    return line;
+                },
+                quotId
+        ));
+        return bill;
+    }
+
+    private void applyCompany(PrintBillData bill) {
+        CompanyDetailsData company = adminService.company();
+        bill.setPrintType(company.getPrintType() == null ? 1 : company.getPrintType());
+        bill.setPrinterName(nz(company.getPrinterName()));
+        bill.setCompanyName(nz(company.getShopName()));
+        bill.setCompanyAddress(nz(company.getAddress()));
+        bill.setCompanyGstin(nz(company.getGstin()));
+        bill.setCompanyBankDetails(nz(company.getBankDetails()));
     }
 
     private void attachPayments(PrintBillData bill) {

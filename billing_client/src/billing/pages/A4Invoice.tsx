@@ -55,10 +55,13 @@ export const A4Invoice: React.FC<{ bill: any }> = ({ bill }) => {
   }, [bill]);
 
   const emptyRows = Math.max(0, 10 - calc.items.length);
+  const title = bill.docTitle || 'Tax Invoice';
+  const noLabel = bill.docNoLabel || 'Invoice No.';
+  const isQuote = title === 'Quotation';
 
   return (
     <div className="a4-wrap">
-      <div className="a4-title">Tax Invoice</div>
+      <div className="a4-title">{title}</div>
       <div className="a4-box">
         <div className="a4-header">
           <img src={logo} alt="" />
@@ -82,9 +85,9 @@ export const A4Invoice: React.FC<{ bill: any }> = ({ bill }) => {
             </div>
           </div>
           <div className="a4-half">
-            <div className="a4-h a4-right">Invoice Details</div>
+            <div className="a4-h a4-right">{isQuote ? 'Quotation Details' : 'Invoice Details'}</div>
             <div className="a4-body a4-right">
-              <div>Invoice No.: {bill.billDisplay}</div>
+              <div>{noLabel}: {bill.billDisplay}</div>
               <div>Date: {bill.date}</div>
               <div>Place of Supply: Tamil Nadu</div>
             </div>
@@ -161,11 +164,12 @@ export const A4Invoice: React.FC<{ bill: any }> = ({ bill }) => {
             {calc.discount > 0 && <div className="a4-line"><span>Item Discount</span><span>- ₹ {money(calc.discount)}</span></div>}
             {calc.extra > 0 && <div className="a4-line"><span>Extra Discount</span><span>- ₹ {money(calc.extra)}</span></div>}
             <div className="a4-line total"><span>Total</span><span>₹ {money(calc.finalPaid)}</span></div>
-            <div className="a4-line"><span>Paid</span><span>₹ {money(bill.paid)}</span></div>
-            <div className="a4-line"><span>Balance</span><span>₹ {money(bill.balance)}</span></div>
+            {!isQuote && <div className="a4-line"><span>Paid</span><span>₹ {money(bill.paid)}</span></div>}
+            {!isQuote && <div className="a4-line"><span>Balance</span><span>₹ {money(bill.balance)}</span></div>}
           </div>
         </div>
 
+        {!isQuote && (
         <table className="a4-pay">
           <thead>
             <tr><th colSpan={5} className="a4-h" style={{ border: 'none' }}>Payment Summary</th></tr>
@@ -187,6 +191,7 @@ export const A4Invoice: React.FC<{ bill: any }> = ({ bill }) => {
             ))}
           </tbody>
         </table>
+        )}
 
         <div className="a4-words">Amount In Words : {bill.amountInWords}</div>
         <div className="a4-foot">

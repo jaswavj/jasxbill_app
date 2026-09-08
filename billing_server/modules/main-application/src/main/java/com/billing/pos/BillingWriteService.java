@@ -135,6 +135,9 @@ public class BillingWriteService {
         if (request.getProducts() == null || request.getProducts().isEmpty()) {
             throw new RuntimeException("Empty hold. Add products first.");
         }
+        if (request.getQuotationId() != null && request.getQuotationId() > 0) {
+            return updateHold(request, uid);
+        }
         int year = LocalDate.now().getYear() % 100;
         Integer maxId = jdbcTemplate.query(
                 "SELECT MAX(id) AS maxId FROM prod_quotation WHERE YEAR(date) = YEAR(CURDATE())",
@@ -164,6 +167,42 @@ public class BillingWriteService {
             return ps;
         }, keyHolder);
         long quotId = requireGeneratedId(keyHolder);
+        int isTaxBill = request.getIsTaxBill() == null ? 1 : request.getIsTaxBill();
+        for (BillLineRequest line : request.getProducts()) {
+            int gst = isTaxBill == 1 ? productGst(line.getId()) : 0;
+            jdbcTemplate.update(
+                    "INSERT INTO prod_quotation_details (quot_id, prod_id, qty, price, disc, total, gst, is_cancelled) VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
+                    quotId, line.getId(), line.getQty(), line.getPrice(), nz(line.getDiscount()), nz(line.getTotal()), gst
+            );
+        }
+        return Map.of("quotNo", quotNo, "quotId", quotId);
+    }
+
+    private Map<String, Object> updateHold(HoldBillRequest request, Long uid) {
+        Long quotId = request.getQuotationId();
+        List<String> existing = jdbcTemplate.query(
+                "SELECT bill_display FROM prod_quotation WHERE id = ? AND is_cancelled = 0 AND is_billed = 0",
+                (rs, i) -> rs.getString(1),
+                quotId
+        );
+        if (existing.isEmpty()) {
+            throw new RuntimeException("Hold not found or already billed.");
+        }
+        String quotNo = existing.get(0);
+        jdbcTemplate.update(
+                "UPDATE prod_quotation SET total=?, prodDisc=?, extraDisc=?, payable=?, cusName=?, cusPhn=?, customerId=?, date=NOW(), time=NOW(), uid=? " +
+                        "WHERE id=?",
+                nz(request.getPriceTotal()),
+                nz(request.getDiscountTotal()),
+                nz(request.getFinalDiscount()),
+                nz(request.getPayableAmount()),
+                blankToDash(request.getCustomerName()),
+                blankToDash(request.getCustomerPhn()),
+                request.getCustomerId() != null && request.getCustomerId() > 0 ? request.getCustomerId() : null,
+                uid,
+                quotId
+        );
+        jdbcTemplate.update("UPDATE prod_quotation_details SET is_cancelled = 1 WHERE quot_id = ?", quotId);
         int isTaxBill = request.getIsTaxBill() == null ? 1 : request.getIsTaxBill();
         for (BillLineRequest line : request.getProducts()) {
             int gst = isTaxBill == 1 ? productGst(line.getId()) : 0;

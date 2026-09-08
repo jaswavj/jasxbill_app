@@ -20,6 +20,7 @@ export class BillingApiService {
   saveHold = (payload: any) => this.http.post('/v1/billing/hold', payload);
   holds = () => this.http.get('/v1/billing/holds');
   holdDetails = (id: number) => this.http.get(`/v1/billing/holds/${id}`);
+  printHold = (id: number) => this.http.get(`/v1/billing/holds/${id}/print`);
   cancelHold = (id: number) => this.http.post(`/v1/billing/holds/${id}/cancel`, {});
   recentBills = () => this.http.get('/v1/billing/recent');
   printBill = (billNo: string) => this.http.get(`/v1/billing/print/${encodeURIComponent(billNo)}`);

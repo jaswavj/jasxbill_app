@@ -9,6 +9,8 @@ public class QuotationData {
     private String customerName;
     private String customerPhone;
     private Double payable;
+    private Double extraDiscount;
+    private Long customerId;
     private String date;
     private String time;
 }

@@ -33,6 +33,8 @@ public class PrintBillData {
     private String companyGstin;
     private String companyBankDetails;
     private String amountInWords;
+    private String docTitle;
+    private String docNoLabel;
     private List<PrintLineData> items = new ArrayList<>();
     private List<PrintPaymentRow> payments = new ArrayList<>();
 
