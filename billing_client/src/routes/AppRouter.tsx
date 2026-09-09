@@ -1,7 +1,6 @@
 import { lazy, Suspense, type ReactElement } from 'react';
-import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
+import { HashRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 import Login from '../login/Login';
-import { routerBaseUrl } from '../billingConfig';
 
 const MainLayout = lazy(() => import('../main-layout/MainLayout'));
 const AuthGuard = lazy(() => import('../auth-guard/AuthGuard'));
@@ -81,7 +80,7 @@ const guard = (element: ReactElement) => <AuthGuard component={element} />;
 
 const AppRouter = () => {
   return (
-    <Router basename={routerBaseUrl}>
+    <Router>
       <Suspense fallback={<div style={{ padding: 24, textAlign: 'center' }}>Loading…</div>}>
         <Routes>
           <Route path="/" element={<Navigate to="/login" replace />} />

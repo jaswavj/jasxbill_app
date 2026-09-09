@@ -5,7 +5,7 @@ let routerBaseUrl = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 const appHref = (path: string) => {
   const p = path.startsWith('/') ? path : `/${path}`;
-  return `${routerBaseUrl}${p}`;
+  return `${routerBaseUrl}/#${p}`;
 };
 
 const envApi = import.meta.env.VITE_API_BASE_URL;
