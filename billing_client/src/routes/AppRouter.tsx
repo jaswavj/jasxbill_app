@@ -42,6 +42,8 @@ const ChangePasswordPage = lazy(() => import('../billing/pages/users/ChangePassw
 const UserDiscountPage = lazy(() => import('../billing/pages/users/UserDiscountPage'));
 const CompanyDetailsPage = lazy(() => import('../billing/pages/admin/CompanyDetailsPage'));
 const EditBillPage = lazy(() => import('../billing/pages/admin/EditBillPage'));
+const MonthlyBillsPage = lazy(() => import('../billing/pages/admin/MonthlyBillsPage'));
+const EditLogPage = lazy(() => import('../billing/pages/admin/EditLogPage'));
 const ChangePaymentTypePage = lazy(() => import('../billing/pages/admin/ChangePaymentTypePage'));
 const ExchangePage = lazy(() => import('../billing/pages/admin/ExchangePage'));
 const BillDateChangeReportPage = lazy(() => import('../billing/pages/admin/BillDateChangeReportPage'));
@@ -148,6 +150,8 @@ const AppRouter = () => {
               <Route path="users/discount" element={<UserDiscountPage />} />
               <Route path="admin/company-details" element={<CompanyDetailsPage />} />
               <Route path="admin/edit-bill" element={<EditBillPage />} />
+              <Route path="admin/monthly-bills" element={<MonthlyBillsPage />} />
+              <Route path="admin/edit-log" element={<EditLogPage />} />
               <Route path="admin/change-payment-type" element={<ChangePaymentTypePage />} />
               <Route path="admin/exchange" element={<ExchangePage />} />
               <Route path="admin/bill-date-change-report" element={<BillDateChangeReportPage />} />

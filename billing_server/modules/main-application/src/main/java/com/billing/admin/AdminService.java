@@ -11,6 +11,7 @@ import com.billing.admin.dto.CancelBillRow;
 import com.billing.admin.dto.CompanyDetailsData;
 import com.billing.admin.dto.DateChangeRow;
 import com.billing.admin.dto.DateUpdateRequest;
+import com.billing.admin.dto.EditLogRow;
 import com.billing.admin.dto.ExchangeBillData;
 import com.billing.admin.dto.ExchangeItemData;
 import com.billing.admin.dto.ExchangeProductData;
@@ -28,6 +29,7 @@ import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.annotation.PostConstruct;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.PreparedStatement;
@@ -40,6 +42,11 @@ import java.util.Map;
 public class AdminService {
 
     private final JdbcTemplate jdbcTemplate;
+
+    @PostConstruct
+    public void init() {
+        ensureEditLogTable();
+    }
 
     public CompanyDetailsData company() {
         List<CompanyDetailsData> rows = jdbcTemplate.query(
@@ -234,6 +241,7 @@ public class AdminService {
                 billId, old.get(0), newDate, uid
         );
         jdbcTemplate.update("UPDATE prod_bill SET date = ? WHERE id = ?", newDate, billId);
+        logBillAction(billId, billDisplay(billId), "DATE_CHANGE", "Date " + old.get(0) + " → " + newDate, uid);
     }
 
     @Transactional
@@ -288,6 +296,7 @@ public class AdminService {
             }
             restoreStock(line.getProductId(), BigDecimal.valueOf(line.getQty()), uid, billId, "Cancel bill - returned to stock");
         }
+        logBillAction(billId, billDisplay(billId), "CANCEL", "Cancelled. Reason: " + reason, uid);
     }
 
     public PaymentInfoData paymentInfo(String billNo) {
@@ -357,6 +366,10 @@ public class AdminService {
                         "VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
                 request.getBillId(), oldCash, cash, oldBank, bank, bank > 0 ? bankMode : null, uid
         );
+        logBillAction(request.getBillId(), billDisplay(request.getBillId()), "PAYMENT_CHANGE",
+                "Cash " + String.format("%.2f", oldCash) + " → " + String.format("%.2f", cash)
+                        + ", Bank " + String.format("%.2f", oldBank) + " → " + String.format("%.2f", bank),
+                uid);
     }
 
     public ExchangeBillData exchangeBill(String billNo) {
@@ -789,6 +802,64 @@ public class AdminService {
                 },
                 from, to
         );
+    }
+
+    public List<EditLogRow> editLog(String from, String to) {
+        ensureEditLogTable();
+        return jdbcTemplate.query(
+                "SELECT a.id, a.bill_id, a.bill_display, a.action, a.details, a.date, a.time, IFNULL(u.user_name, '') AS user_name " +
+                        "FROM prod_bill_edit_log a LEFT JOIN users u ON u.id = a.uid " +
+                        "WHERE a.date BETWEEN ? AND ? ORDER BY a.date DESC, a.time DESC, a.id DESC",
+                (rs, i) -> {
+                    EditLogRow row = new EditLogRow();
+                    row.setId(rs.getLong("id"));
+                    row.setBillId(rs.getLong("bill_id"));
+                    row.setBillNo(rs.getString("bill_display"));
+                    row.setAction(rs.getString("action"));
+                    row.setDetails(rs.getString("details"));
+                    row.setDate(asStr(rs.getDate("date")));
+                    row.setTime(asStr(rs.getTime("time")));
+                    row.setUserName(rs.getString("user_name"));
+                    return row;
+                },
+                from, to
+        );
+    }
+
+    public void logBillAction(Long billId, String billDisplay, String action, String details, Long uid) {
+        jdbcTemplate.update(
+                "INSERT INTO prod_bill_edit_log (bill_id, bill_display, action, details, uid, date, time) VALUES (?, ?, ?, ?, ?, CURDATE(), CURTIME())",
+                billId, billDisplay, action, details, uid
+        );
+    }
+
+    private void ensureEditLogTable() {
+        jdbcTemplate.execute(
+                "CREATE TABLE IF NOT EXISTS prod_bill_edit_log (" +
+                        "id BIGINT NOT NULL AUTO_INCREMENT, " +
+                        "bill_id BIGINT NULL, " +
+                        "bill_display VARCHAR(64) NULL, " +
+                        "action VARCHAR(32) NOT NULL, " +
+                        "details TEXT NULL, " +
+                        "uid BIGINT NULL, " +
+                        "date DATE NULL, " +
+                        "time TIME NULL, " +
+                        "PRIMARY KEY (id), " +
+                        "KEY idx_edit_log_date (date)" +
+                        ")"
+        );
+    }
+
+    private String billDisplay(Long billId) {
+        if (billId == null) {
+            return "";
+        }
+        String value = jdbcTemplate.query(
+                "SELECT bill_display FROM prod_bill WHERE id = ?",
+                rs -> rs.next() ? rs.getString(1) : "",
+                billId
+        );
+        return value == null ? "" : value;
     }
 
     private String validateCancel(Long billId) {

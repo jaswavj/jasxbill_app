@@ -33,6 +33,7 @@ export class AdminApiService {
     if (type) params.set('type', String(type));
     return this.http.get(`/v1/admin/reports/exchange?${params}`);
   };
+  editLog = (from: string, to: string) => this.http.get(`/v1/admin/reports/edit-log?from=${from}&to=${to}`);
 }
 
 export const adminApi = new AdminApiService();

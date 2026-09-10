@@ -187,6 +187,8 @@ export const billingMenuConfig: MenuItemConfig[] = [
     submenus: [
       { id: 'company-details', name: 'Company Details', url: routerPathNames.admin.companyDetails, icon: 'fas fa-building' },
       { id: 'edit-bill', name: 'Edit Date/Cancel Bill', url: routerPathNames.admin.editBill, icon: 'fas fa-edit' },
+      { id: 'monthly-bills', name: 'Monthly Bills', url: routerPathNames.admin.monthlyBills, icon: 'fas fa-file-invoice' },
+      { id: 'edit-log', name: 'Edit Log', url: routerPathNames.admin.editLog, icon: 'fas fa-history' },
       { id: 'change-payment-type', name: 'Change Payment Type', url: routerPathNames.admin.changePaymentType, icon: 'fas fa-exchange-alt' },
       { id: 'exchange', name: 'Exchange', url: routerPathNames.admin.exchange, icon: 'fas fa-sync' },
       { id: 'bill-date-change-report', name: 'Bill Date Change Report', url: routerPathNames.admin.billDateChangeReport, icon: 'fas fa-calendar-alt' },

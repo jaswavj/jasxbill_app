@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSelector } from 'react-redux';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { adminApi } from '../../api/admin/admin-api-service';
 import { BillingApiService } from '../../api/billing/billing-api-service';
 import { OrderListApiService } from '../../api/orders/order-list-api-service';
+import { routerPathNames } from '../../routes/routerPathNames';
 import { RootState } from '../../state/store';
 import { A4Invoice } from './A4Invoice';
 import './BillingPage.css';
@@ -52,6 +55,8 @@ const money = (n: number) => (Number.isFinite(n) ? n.toFixed(3) : '0.000');
 
 const BillingPage: React.FC = () => {
   const login = useSelector((s: RootState) => s.loginData);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [discPer, setDiscPer] = useState(login.discPer || 100);
   const [canBillWithoutStock, setCanBillWithoutStock] = useState(false);
 
@@ -74,6 +79,7 @@ const BillingPage: React.FC = () => {
   const [stock, setStock] = useState<number | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
+  const autoPay = useRef(true);
 
   const [lines, setLines] = useState<Line[]>([]);
   const [lineKey, setLineKey] = useState(1);
@@ -101,6 +107,11 @@ const BillingPage: React.FC = () => {
   const [history, setHistory] = useState<any[] | null>(null);
   const [historyName, setHistoryName] = useState('');
   const [a4Bill, setA4Bill] = useState<any>(null);
+  const [editBillId, setEditBillId] = useState(0);
+  const [editBillNo, setEditBillNo] = useState('');
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     api.options().then((res: any) => {
@@ -110,6 +121,63 @@ const BillingPage: React.FC = () => {
       }
     }).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    const billNo = (searchParams.get('edit') || '').trim();
+    if (!billNo) return;
+    let live = true;
+    (async () => {
+      try {
+        const res: any = await api.editBill(billNo);
+        if (!live) return;
+        if (!res?.success || !res.data) {
+          toast.error(res?.data?.error || 'Bill not found');
+          return;
+        }
+        const data = res.data;
+        const items: any[] = data.products || [];
+        autoPay.current = false;
+        setEditBillId(data.billId);
+        setEditBillNo(data.billDisplay);
+        setLines(items.map((item, idx) => ({
+          key: idx + 1,
+          productId: item.productId,
+          code: item.code,
+          name: item.name,
+          qty: item.qty,
+          displayQty: item.qty,
+          displayUnit: item.unitName || '',
+          price: item.price,
+          discType: 1 as const,
+          discInput: item.discount || 0,
+          discount: item.discount || 0,
+          commissionPer: item.commission || 0,
+          commission: (item.commission || 0) * (item.qty || 0),
+          total: item.total,
+          batchId: item.batchId,
+        })));
+        setLineKey(items.length + 1);
+        const empty = (v?: string) => (!v || v === '-' ? '' : v);
+        setCustomerName(empty(data.customerName));
+        setCustomerPhone(empty(data.customerPhone));
+        setCustomerId(data.customerId || 0);
+        setIsTaxBill(data.isTaxBill === 1);
+        setIsCommission(data.isEligibleForCommission === 1 || items.some((item) => (item.commission || 0) > 0));
+        setExtraDisc(String(data.extraDisc || 0));
+        setMode(String(data.paymentMode || 1));
+        setPayType(String(data.paymentType || 1));
+        setCashPaid(money(data.cashPaid || 0));
+        setBankPaid(money(data.bankPaid || 0));
+        setBalance(money(data.balance || 0));
+        setExchangePoint(data.exchangePoint || 0);
+        toast.info(`Editing bill ${data.billDisplay}`);
+      } catch (err: any) {
+        if (!live) return;
+        toast.error(err?.response?.data?.data?.error || 'Could not load bill for edit');
+      }
+    })();
+    return () => { live = false; };
+  }, [searchParams]);
 
   const totals = useMemo(() => {
     const priceTotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
@@ -121,6 +189,11 @@ const BillingPage: React.FC = () => {
 
   const extra = parseFloat(extraDisc) || 0;
   const payable = Math.max(0, totals.grandTotal - extra);
+  const cashAmt = parseFloat(cashPaid) || 0;
+  const bankAmt = parseFloat(bankPaid) || 0;
+  const paidAmt = cashAmt + bankAmt;
+  const dueAmt = Math.max(0, payable - paidAmt);
+  const paidOver = paidAmt - payable > 0.001;
 
   useEffect(() => {
     if (!bypassCap && totals.priceTotal > 0 && discPer < 100) {
@@ -134,16 +207,19 @@ const BillingPage: React.FC = () => {
   }, [extraDisc, totals, discPer, bypassCap]);
 
   useEffect(() => {
+    if (!autoPay.current) return;
     if (mode === '1') {
       setCashPaid(money(payable));
       setBankPaid('0');
-      setBalance('0');
     } else if (mode === '2') {
       setCashPaid('0');
       setBankPaid(money(payable));
-      setBalance('0');
     }
   }, [payable, mode]);
+
+  useEffect(() => {
+    setBalance(money(Math.max(0, payable - (parseFloat(cashPaid) || 0) - (parseFloat(bankPaid) || 0))));
+  }, [payable, cashPaid, bankPaid]);
 
   const searchCustomers = async (query?: string, phone?: string) => {
     if ((!query || query.length < 1) && (!phone || phone.length < 2)) {
@@ -319,6 +395,32 @@ const BillingPage: React.FC = () => {
     );
   };
 
+  const updateLineQtyPrice = (key: number, qtyVal: number, priceVal: number) => {
+    setLines((prev) =>
+      prev.map((line) => {
+        if (line.key !== key) return line;
+        const nextQty = qtyVal > 0 ? qtyVal : line.qty;
+        const nextPrice = priceVal >= 0 ? priceVal : line.price;
+        const subtotal = nextQty * nextPrice;
+        let discInput = line.discInput;
+        if (line.discType === 2) discInput = Math.min(100, discInput);
+        else discInput = Math.min(subtotal, discInput);
+        const discount = line.discType === 2 ? (subtotal * discInput) / 100 : discInput;
+        const commission = isCommission ? line.commissionPer * nextQty : 0;
+        return {
+          ...line,
+          qty: nextQty,
+          displayQty: nextQty,
+          price: nextPrice,
+          discInput,
+          discount,
+          commission,
+          total: subtotal - discount - commission,
+        };
+      })
+    );
+  };
+
   const removeLine = (key: number) => setLines((prev) => prev.filter((l) => l.key !== key));
 
   const collectProducts = () =>
@@ -357,46 +459,50 @@ const BillingPage: React.FC = () => {
   };
 
   const saveBill = async () => {
-    if (savedNo) return;
+    if (savedNo && !editBillId) return;
     if (totals.priceTotal === 0) {
       toast.error('Empty bill. Add products first.');
       return;
     }
     const cash = parseFloat(cashPaid) || 0;
     const bank = parseFloat(bankPaid) || 0;
-    const bal = parseFloat(balance) || 0;
-    if (cash + bank > payable + 0.001) {
-      toast.error('Paid amount exceeds payable amount.');
+    const paid = cash + bank;
+    const due = Math.max(0, payable - paid);
+    if (cash < 0 || bank < 0) {
+      toast.error('Paid amount cannot be negative.');
       return;
     }
-    if ((customerName === '' || customerName === '-') && bal > 0) {
-      toast.error('Enter customer name for balance payment.');
+    if (paid > payable + 0.001) {
+      toast.error('Paid amount cannot be more than payable amount.');
       return;
     }
-    if (Math.abs(cash + bank + bal - payable) > 0.02) {
-      toast.error('Paid and payable amount mismatch.');
+    if ((customerName === '' || customerName === '-') && due > 0.001) {
+      toast.error('Enter customer name for due / balance payment.');
       return;
     }
     setSaving(true);
     try {
-      const res: any = await api.saveBill({
+      const payload = {
         ...payloadBase(),
         cashPaid: cash,
         bankPaid: bank,
         mode: Number(mode),
         type: Number(payType),
-        balance: bal,
-        quotationId,
-        exchangePointUsed: exchangeUsed,
-      });
+        balance: due,
+        quotationId: editBillId ? 0 : quotationId,
+        exchangePointUsed: editBillId ? 0 : exchangeUsed,
+      };
+      const res: any = editBillId
+        ? await api.updateBill(editBillId, payload)
+        : await api.saveBill(payload);
       if (res?.success) {
         setSavedNo(res.data.billDisplay);
-        toast.success(`Bill saved: ${res.data.billDisplay}`);
+        toast.success(editBillId ? `Bill updated: ${res.data.billDisplay}` : `Bill saved: ${res.data.billDisplay}`);
       } else {
-        toast.error(res?.data?.error || 'Save failed');
+        toast.error(res?.data?.error || (editBillId ? 'Update failed' : 'Save failed'));
       }
     } catch (e: any) {
-      toast.error(e?.response?.data?.data?.error || 'Save failed');
+      toast.error(e?.response?.data?.data?.error || (editBillId ? 'Update failed' : 'Save failed'));
     } finally {
       setSaving(false);
     }
@@ -555,7 +661,7 @@ const BillingPage: React.FC = () => {
     }
   };
 
-  const printBill = async (billNo = savedNo || dupeNo) => {
+  const printBill = async (billNo = savedNo || editBillNo || dupeNo) => {
     if (!billNo && quotationId) {
       await printHoldDoc(quotationId);
       return;
@@ -591,11 +697,35 @@ const BillingPage: React.FC = () => {
     setHistory(res?.data || []);
   };
 
-  const newBill = () => window.location.reload();
+  const newBill = () => {
+    if (editBillId) {
+      navigate(routerPathNames.admin.monthlyBills);
+      return;
+    }
+    window.location.reload();
+  };
 
   const closeSave = () => {
     setSaveOpen(false);
     if (savedNo) newBill();
+  };
+
+  const cancelEditedBill = async () => {
+    if (!editBillId) return;
+    if (!cancelReason.trim()) {
+      toast.warning('Enter a cancellation reason');
+      return;
+    }
+    setCancelling(true);
+    try {
+      await adminApi.cancelBill(editBillId, cancelReason.trim());
+      toast.success(`Bill ${editBillNo} cancelled`);
+      navigate(routerPathNames.admin.monthlyBills);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.data?.error || err?.message || 'Cancel failed');
+    } finally {
+      setCancelling(false);
+    }
   };
 
   const kgProduct = pending && ['kg', 'kgs'].includes((pending.unitName || '').toLowerCase());
@@ -615,7 +745,7 @@ const BillingPage: React.FC = () => {
         : e.code === 'KeyP' ? 'p'
         : e.code === 'KeyC' ? 'c'
         : e.key.toLowerCase();
-      if (k === 'o') { e.preventDefault(); saveHold(); }
+      if (k === 'o') { e.preventDefault(); if (!editBillId) saveHold(); }
       else if (k === 'r') { e.preventDefault(); newBill(); }
       else if (k === 's') { e.preventDefault(); openSave(); }
       else if (k === 'b') { e.preventDefault(); saveBill(); }
@@ -687,8 +817,16 @@ const BillingPage: React.FC = () => {
             <input className="pos-inp" value={price} onChange={(e) => setPrice(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addProduct()} />
           </div>
           <button className="pos-btn" type="button" onClick={addProduct}>ADD</button>
-          <button className="pos-btn pos-btn-outline" type="button" onClick={openHolds}>HOLD LIST</button>
+          {!editBillId && (
+            <button className="pos-btn pos-btn-outline" type="button" onClick={openHolds}>HOLD LIST</button>
+          )}
         </div>
+        {editBillNo && (
+          <div className="pos-banner pos-banner-edit">
+            Editing Sales Invoice #{editBillNo}
+            <button className="pos-btn pos-btn-outline" type="button" onClick={() => navigate(routerPathNames.admin.monthlyBills)}>Back to bills</button>
+          </div>
+        )}
       </div>
 
       <div className="pos-table-wrap">
@@ -705,8 +843,23 @@ const BillingPage: React.FC = () => {
                 <td>{idx + 1}</td>
                 <td>{line.code}</td>
                 <td>{line.name}</td>
-                <td>{line.displayQty} {line.displayUnit}</td>
-                <td>₹{money(line.price)}</td>
+                <td onClick={(e) => e.stopPropagation()}>
+                  <div className="pos-disc-cell">
+                    <input
+                      className="pos-inp"
+                      value={line.displayQty}
+                      onChange={(e) => updateLineQtyPrice(line.key, parseFloat(e.target.value) || 0, line.price)}
+                    />
+                    <span className="pos-unit-tag">{line.displayUnit}</span>
+                  </div>
+                </td>
+                <td onClick={(e) => e.stopPropagation()}>
+                  <input
+                    className="pos-inp"
+                    value={line.price}
+                    onChange={(e) => updateLineQtyPrice(line.key, line.qty, parseFloat(e.target.value) || 0)}
+                  />
+                </td>
                 <td onClick={(e) => e.stopPropagation()}>
                   <div className="pos-disc-cell">
                     <select value={line.discType} onChange={(e) => updateLineDisc(line.key, Number(e.target.value) as 1 | 2, line.discInput)}>
@@ -743,10 +896,10 @@ const BillingPage: React.FC = () => {
             </button>
             <button className="pos-btn pos-btn-outline" type="button" onClick={openDupe}>DUP</button>
             <button className="pos-btn pos-btn-outline" type="button" title="Alt+R" onClick={newBill}>REFRESH</button>
-            <button className={`pos-btn ${savedNo ? 'pos-btn-saved' : 'pos-btn-navy'}`} type="button" title="Alt+S" onClick={openSave}>
-              {savedNo ? 'BILL SAVED' : 'SAVE'}
+            <button className={`pos-btn ${savedNo && !editBillId ? 'pos-btn-saved' : 'pos-btn-navy'}`} type="button" title="Alt+S" onClick={openSave}>
+              {savedNo && !editBillId ? 'BILL SAVED' : editBillId ? 'UPDATE' : 'SAVE'}
             </button>
-            {savedNo && <div className="pos-billno">Bill No - {savedNo}</div>}
+            {(savedNo || editBillNo) && <div className="pos-billno">Bill No - {savedNo || editBillNo}</div>}
             {holdNo && <div className="pos-billno">Hold - {holdNo}</div>}
             {orderId > 0 && <div className="pos-billno">Order loaded</div>}
           </div>
@@ -781,7 +934,7 @@ const BillingPage: React.FC = () => {
         <div className="pos-modal-back" onClick={closeSave}>
           <div className="pos-modal pos-save-modal" onClick={(e) => e.stopPropagation()}>
             <div className="pos-modal-head">
-              <h4>Save Bill</h4>
+              <h4>{editBillId ? `Update Bill #${editBillNo}` : 'Save Bill'}</h4>
               <button className="pos-btn pos-btn-outline" type="button" title="Alt+C" onClick={closeSave}>Close</button>
             </div>
             <div className="pos-row" style={{ marginBottom: 12 }}>
@@ -856,7 +1009,7 @@ const BillingPage: React.FC = () => {
             <div className="pos-pay" style={{ marginTop: 10 }}>
               <div className="pos-fg">
                 <span className="pos-lbl">Pay Mode</span>
-                <select className="pos-sel" value={mode} onChange={(e) => setMode(e.target.value)}>
+                <select className="pos-sel" value={mode} onChange={(e) => { autoPay.current = true; setMode(e.target.value); }}>
                   <option value="1">Cash</option>
                   <option value="2">Bank</option>
                   <option value="3">Mixed</option>
@@ -872,19 +1025,81 @@ const BillingPage: React.FC = () => {
                   <option value="5">Wallet</option>
                 </select>
               </div>
-              <div className="pos-fg"><span className="pos-lbl">Cash Paid</span><input className="pos-inp" value={cashPaid} disabled={mode === '2'} onChange={(e) => setCashPaid(e.target.value)} /></div>
-              <div className="pos-fg"><span className="pos-lbl">Bank Paid</span><input className="pos-inp" value={bankPaid} disabled={mode === '1'} onChange={(e) => setBankPaid(e.target.value)} /></div>
-              <div className="pos-fg"><span className="pos-lbl">Balance</span><input className="pos-inp" value={balance} disabled={mode !== '3'} onChange={(e) => setBalance(e.target.value)} /></div>
+              <div className="pos-fg">
+                <span className="pos-lbl">Cash Paid</span>
+                <input
+                  className="pos-inp"
+                  value={cashPaid}
+                  disabled={mode === '2'}
+                  onChange={(e) => { autoPay.current = false; setCashPaid(e.target.value); }}
+                />
+              </div>
+              <div className="pos-fg">
+                <span className="pos-lbl">Bank Paid</span>
+                <input
+                  className="pos-inp"
+                  value={bankPaid}
+                  disabled={mode === '1'}
+                  onChange={(e) => { autoPay.current = false; setBankPaid(e.target.value); }}
+                />
+              </div>
+              <div className="pos-fg">
+                <span className="pos-lbl">Due / Balance</span>
+                <input className="pos-inp" readOnly value={money(dueAmt)} />
+              </div>
             </div>
+            {paidOver && (
+              <div className="pos-banner" style={{ marginTop: 8, background: '#fee2e2', color: '#991b1b' }}>
+                Paid amount cannot be more than payable ({money(payable)}).
+              </div>
+            )}
+            {dueAmt > 0.001 && !paidOver && (
+              <div className="pos-banner" style={{ marginTop: 8, background: '#fff7ed', color: '#9a3412' }}>
+                Due {money(dueAmt)} will be added to the customer account.
+              </div>
+            )}
             <div className="pos-acts pos-acts-end" style={{ marginTop: 14 }}>
+              {editBillId && (
+                <button className="pos-btn pos-btn-danger" type="button" onClick={() => { setCancelReason(''); setCancelOpen(true); }}>
+                  CANCEL BILL
+                </button>
+              )}
               <button className="pos-btn pos-btn-outline" type="button" title="Alt+C" onClick={closeSave}>CLOSE</button>
-              <button className="pos-btn pos-btn-outline" type="button" title="Alt+O" onClick={saveHold}>HOLD</button>
-              <button className="pos-btn pos-btn-outline" type="button" title="Alt+P" onClick={() => printBill()}>PRINT</button>
-              <button className={`pos-btn ${savedNo ? 'pos-btn-saved' : 'pos-btn-navy'}`} disabled={saving || !!savedNo} title="Alt+B" onClick={saveBill}>
-                {savedNo ? 'BILL SAVED' : saving ? 'Saving...' : 'SAVE'}
+              {!editBillId && (
+                <button className="pos-btn pos-btn-outline" type="button" title="Alt+O" onClick={saveHold}>HOLD</button>
+              )}
+              <button className="pos-btn pos-btn-outline" type="button" title="Alt+P" onClick={() => printBill(savedNo || editBillNo || dupeNo)}>PRINT</button>
+              <button className={`pos-btn ${savedNo && !editBillId ? 'pos-btn-saved' : 'pos-btn-navy'}`} disabled={saving || (!!savedNo && !editBillId)} title="Alt+B" onClick={saveBill}>
+                {savedNo && !editBillId ? 'BILL SAVED' : saving ? (editBillId ? 'Updating...' : 'Saving...') : (editBillId ? 'UPDATE' : 'SAVE')}
               </button>
               {savedNo && <div className="pos-billno">Bill No - {savedNo}</div>}
               {holdNo && <div className="pos-billno">Hold - {holdNo}</div>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelOpen && (
+        <div className="pos-modal-back" onClick={() => !cancelling && setCancelOpen(false)}>
+          <div className="pos-modal" style={{ width: 'min(460px, 100%)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="pos-modal-head">
+              <h4>Cancel Bill #{editBillNo}</h4>
+              <button className="pos-btn pos-btn-outline" type="button" disabled={cancelling} onClick={() => setCancelOpen(false)}>Close</button>
+            </div>
+            <div className="pos-fg">
+              <span className="pos-lbl">Reason</span>
+              <input
+                className="pos-inp"
+                value={cancelReason}
+                placeholder="Reason for cancellation"
+                onChange={(e) => setCancelReason(e.target.value)}
+              />
+            </div>
+            <div className="pos-acts pos-acts-end" style={{ marginTop: 14 }}>
+              <button className="pos-btn pos-btn-outline" type="button" disabled={cancelling} onClick={() => setCancelOpen(false)}>Back</button>
+              <button className="pos-btn pos-btn-danger" type="button" disabled={cancelling} onClick={cancelEditedBill}>
+                {cancelling ? 'Cancelling...' : 'Confirm Cancel'}
+              </button>
             </div>
           </div>
         </div>

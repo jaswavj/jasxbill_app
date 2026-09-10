@@ -110,6 +110,19 @@
   background: var(--color-success);
 }
 
+.pos-btn-danger {
+  background: #dc2626;
+  color: #fff;
+  border-color: #dc2626;
+}
+
+.pos-banner-edit {
+  background: #dbeafe;
+  color: #1e3a8a;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
 .pos-suggest {
   position: absolute;
   top: 100%;
@@ -342,6 +355,13 @@
   height: 28px;
   font-size: 12.5px;
   font-weight: 600;
+}
+
+.pos-unit-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 .pos-modal-back {

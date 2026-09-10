@@ -124,6 +124,11 @@ public class AdminController {
         return ok(adminService.exchangeReport(from, to, type));
     }
 
+    @GetMapping("/reports/edit-log")
+    public ResponseDO editLog(@RequestParam String from, @RequestParam String to) {
+        return ok(adminService.editLog(from, to));
+    }
+
     private Long currentUserId() {
         return securityContext.authenticateUser().getId();
     }

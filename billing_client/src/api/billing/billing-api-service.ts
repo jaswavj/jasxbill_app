@@ -23,6 +23,9 @@ export class BillingApiService {
   printHold = (id: number) => this.http.get(`/v1/billing/holds/${id}/print`);
   cancelHold = (id: number) => this.http.post(`/v1/billing/holds/${id}/cancel`, {});
   recentBills = () => this.http.get('/v1/billing/recent');
+  monthBills = (year: number, month: number) => this.http.get(`/v1/billing/month-bills?year=${year}&month=${month}`);
+  editBill = (billNo: string) => this.http.get(`/v1/billing/edit/${encodeURIComponent(billNo)}`);
+  updateBill = (billId: number, payload: any) => this.http.post(`/v1/billing/update/${billId}`, payload);
   printBill = (billNo: string) => this.http.get(`/v1/billing/print/${encodeURIComponent(billNo)}`);
   dispatchPrint = (billNo: string) => this.http.post(`/v1/billing/print/${encodeURIComponent(billNo)}`, {});
 }

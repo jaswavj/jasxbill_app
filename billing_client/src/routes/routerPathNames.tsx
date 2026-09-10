@@ -67,6 +67,8 @@ export const routerPathNames = {
   admin: {
     companyDetails: '/app/admin/company-details',
     editBill: '/app/admin/edit-bill',
+    monthlyBills: '/app/admin/monthly-bills',
+    editLog: '/app/admin/edit-log',
     changePaymentType: '/app/admin/change-payment-type',
     exchange: '/app/admin/exchange',
     billDateChangeReport: '/app/admin/bill-date-change-report',

@@ -4,6 +4,8 @@ import com.billing.admin.AdminService;
 import com.billing.admin.dto.CompanyDetailsData;
 import com.billing.pos.dto.BillingOptionsData;
 import com.billing.pos.dto.CustomerData;
+import com.billing.pos.dto.EditBillLoadData;
+import com.billing.pos.dto.MonthBillCard;
 import com.billing.pos.dto.PrintBillData;
 import com.billing.pos.dto.ProductHistoryData;
 import com.billing.pos.dto.ProductLookupData;
@@ -150,6 +152,134 @@ public class BillingReadService {
                 },
                 quotId
         );
+    }
+
+    public List<MonthBillCard> monthBills(int year, int month) {
+        if (year < 2000 || month < 1 || month > 12) {
+            throw new RuntimeException("Select a valid month");
+        }
+        String companyGstin = "";
+        try {
+            CompanyDetailsData company = adminService.company();
+            if (company != null && company.getGstin() != null) {
+                companyGstin = company.getGstin();
+            }
+        } catch (Exception ignored) {
+            // company row may be missing
+        }
+        String fallbackGstin = companyGstin;
+        java.time.YearMonth ym = java.time.YearMonth.of(year, month);
+        String start = ym.atDay(1).toString();
+        String end = ym.atEndOfMonth().toString();
+        return jdbcTemplate.query(
+                "SELECT a.id, a.bill_display, a.payable, a.date, a.time, a.paymentMode, a.is_tax_bill, " +
+                        "IFNULL(c.name, a.cusName) AS customer_name, " +
+                        "IFNULL(c.phone_number, a.cusPhn) AS phone, " +
+                        "IFNULL(c.gstin, '') AS gstin " +
+                        "FROM prod_bill a LEFT JOIN customers c ON c.id = a.customerId " +
+                        "WHERE a.is_cancelled = 0 AND a.date BETWEEN ? AND ? " +
+                        "ORDER BY a.date DESC, a.time DESC, a.id DESC",
+                (rs, i) -> {
+                    MonthBillCard row = new MonthBillCard();
+                    row.setBillId(rs.getLong("id"));
+                    row.setBillDisplay(rs.getString("bill_display"));
+                    String name = nz(rs.getString("customer_name"));
+                    row.setCustomerName("-".equals(name) ? "" : name);
+                    String phone = nz(rs.getString("phone"));
+                    row.setCustomerPhone("-".equals(phone) ? "" : phone);
+                    row.setDate(String.valueOf(rs.getDate("date")));
+                    row.setTime(String.valueOf(rs.getTime("time")));
+                    row.setPayable(rs.getDouble("payable"));
+                    row.setPaymentMode(rs.getInt("paymentMode"));
+                    row.setIsTaxBill(rs.getInt("is_tax_bill"));
+                    String gstin = nz(rs.getString("gstin"));
+                    if (gstin.isEmpty()) {
+                        gstin = fallbackGstin;
+                    }
+                    row.setStateLabel(gstStateLabel(gstin));
+                    return row;
+                },
+                start, end
+        );
+    }
+
+    public EditBillLoadData editBill(String billNo) {
+        String no = billNo == null ? "" : billNo.trim();
+        if (no.isEmpty()) {
+            throw new RuntimeException("Bill number is required");
+        }
+        List<EditBillLoadData> headers = jdbcTemplate.query(
+                "SELECT b.id, b.bill_display, b.cusName, b.cusPhn, b.customerId, b.is_tax_bill, b.extraDisc, " +
+                        "b.paymentMode, b.paymentType, b.balance, b.payable, " +
+                        "IFNULL(pay.cash, 0) AS cash, IFNULL(pay.bank, 0) AS bank, " +
+                        "IFNULL(c.name, '') AS cust_name, IFNULL(c.phone_number, '') AS phone, " +
+                        "IFNULL(c.exchange_point, 0) AS exchange_point, " +
+                        "COALESCE(c.is_eligible_for_commission, 0) AS is_eligible " +
+                        "FROM prod_bill b " +
+                        "LEFT JOIN prod_bill_payment pay ON pay.bill_id = b.id " +
+                        "LEFT JOIN customers c ON c.id = b.customerId " +
+                        "WHERE b.bill_display = ? AND IFNULL(b.is_cancelled, 0) = 0 LIMIT 1",
+                (rs, i) -> {
+                    EditBillLoadData data = new EditBillLoadData();
+                    data.setBillId(rs.getLong("id"));
+                    data.setBillDisplay(rs.getString("bill_display"));
+                    String custName = nz(rs.getString("cust_name"));
+                    data.setCustomerName(custName.isEmpty() || "-".equals(custName) ? nz(rs.getString("cusName")) : custName);
+                    String phone = nz(rs.getString("phone"));
+                    data.setCustomerPhone(phone.isEmpty() || "-".equals(phone) ? nz(rs.getString("cusPhn")) : phone);
+                    long customerId = rs.getLong("customerId");
+                    data.setCustomerId(rs.wasNull() ? 0L : customerId);
+                    data.setIsTaxBill(rs.getInt("is_tax_bill"));
+                    data.setExtraDisc(rs.getDouble("extraDisc"));
+                    data.setPaymentMode(rs.getInt("paymentMode"));
+                    int payType = rs.getInt("paymentType");
+                    data.setPaymentType(payType <= 0 ? 1 : payType);
+                    data.setCashPaid(rs.getDouble("cash"));
+                    data.setBankPaid(rs.getDouble("bank"));
+                    data.setBalance(rs.getDouble("balance"));
+                    data.setPayable(rs.getDouble("payable"));
+                    data.setExchangePoint(rs.getDouble("exchange_point"));
+                    data.setIsEligibleForCommission(rs.getInt("is_eligible"));
+                    return data;
+                },
+                no
+        );
+        if (headers.isEmpty()) {
+            throw new RuntimeException("Bill not found or has been cancelled");
+        }
+        EditBillLoadData bill = headers.get(0);
+        if ("-".equals(bill.getCustomerName())) {
+            bill.setCustomerName("");
+        }
+        if ("-".equals(bill.getCustomerPhone())) {
+            bill.setCustomerPhone("");
+        }
+        bill.setProducts(jdbcTemplate.query(
+                "SELECT d.prod_id, p.name AS prod_name, p.code, d.qty, d.price, d.disc, d.total, d.gst, " +
+                        "IFNULL(d.commission, 0) AS commission, IFNULL(u.name, '') AS unit_name, " +
+                        "IFNULL((SELECT id FROM prod_batch WHERE product_id = d.prod_id ORDER BY id DESC LIMIT 1), 0) AS batch_id " +
+                        "FROM prod_bill_details d " +
+                        "JOIN prod_product p ON p.id = d.prod_id " +
+                        "LEFT JOIN prod_units u ON u.id = p.unit_id " +
+                        "WHERE d.bill_id = ?",
+                (rs, i) -> {
+                    QuotationLineData row = new QuotationLineData();
+                    row.setProductId(rs.getLong("prod_id"));
+                    row.setName(rs.getString("prod_name"));
+                    row.setCode(rs.getString("code"));
+                    row.setQty(rs.getDouble("qty"));
+                    row.setPrice(rs.getDouble("price"));
+                    row.setDiscount(rs.getDouble("disc"));
+                    row.setTotal(rs.getDouble("total"));
+                    row.setGst(rs.getInt("gst"));
+                    row.setBatchId(rs.getLong("batch_id"));
+                    row.setCommission(rs.getDouble("commission"));
+                    row.setUnitName(rs.getString("unit_name"));
+                    return row;
+                },
+                bill.getBillId()
+        ));
+        return bill;
     }
 
     public List<RecentBillData> recentBills() {
@@ -411,6 +541,57 @@ public class BillingReadService {
             case 5 -> "Wallet";
             default -> "-";
         };
+    }
+
+    private String gstStateLabel(String gstin) {
+        if (gstin == null || gstin.trim().length() < 2) {
+            return "";
+        }
+        String code = gstin.trim().substring(0, 2);
+        String name = switch (code) {
+            case "01" -> "Jammu & Kashmir";
+            case "02" -> "Himachal Pradesh";
+            case "03" -> "Punjab";
+            case "04" -> "Chandigarh";
+            case "05" -> "Uttarakhand";
+            case "06" -> "Haryana";
+            case "07" -> "Delhi";
+            case "08" -> "Rajasthan";
+            case "09" -> "Uttar Pradesh";
+            case "10" -> "Bihar";
+            case "11" -> "Sikkim";
+            case "12" -> "Arunachal Pradesh";
+            case "13" -> "Nagaland";
+            case "14" -> "Manipur";
+            case "15" -> "Mizoram";
+            case "16" -> "Tripura";
+            case "17" -> "Meghalaya";
+            case "18" -> "Assam";
+            case "19" -> "West Bengal";
+            case "20" -> "Jharkhand";
+            case "21" -> "Odisha";
+            case "22" -> "Chhattisgarh";
+            case "23" -> "Madhya Pradesh";
+            case "24" -> "Gujarat";
+            case "26" -> "Dadra & Nagar Haveli and Daman & Diu";
+            case "27" -> "Maharashtra";
+            case "29" -> "Karnataka";
+            case "30" -> "Goa";
+            case "31" -> "Lakshadweep";
+            case "32" -> "Kerala";
+            case "33" -> "Tamil Nadu";
+            case "34" -> "Puducherry";
+            case "35" -> "Andaman & Nicobar";
+            case "36" -> "Telangana";
+            case "37" -> "Andhra Pradesh";
+            case "38" -> "Ladakh";
+            case "97" -> "Other Territory";
+            default -> "";
+        };
+        if (name.isEmpty()) {
+            return "";
+        }
+        return code + " - " + name;
     }
 
     private String nz(String value) {

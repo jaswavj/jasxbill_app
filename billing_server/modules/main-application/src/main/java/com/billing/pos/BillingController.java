@@ -95,6 +95,21 @@ public class BillingController {
         return ok(readService.recentBills());
     }
 
+    @GetMapping("/month-bills")
+    public ResponseDO monthBills(@RequestParam int year, @RequestParam int month) {
+        return ok(readService.monthBills(year, month));
+    }
+
+    @GetMapping("/edit/{billNo}")
+    public ResponseDO editBill(@PathVariable String billNo) {
+        return ok(readService.editBill(billNo));
+    }
+
+    @PostMapping("/update/{billId}")
+    public ResponseDO updateBill(@PathVariable Long billId, @RequestBody SaveBillRequest request) {
+        return ok(writeService.updateBill(billId, request, currentUserId()));
+    }
+
     @GetMapping("/print/{billNo}")
     public ResponseDO printBill(@PathVariable String billNo) {
         return ok(readService.printBill(billNo));

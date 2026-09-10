@@ -1,5 +1,6 @@
 package com.billing.statistics;
 
+import com.billing.pos.BillingReadService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ public class StatisticsService {
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd-MM-yyyy");
 
     private final JdbcTemplate jdbcTemplate;
+    private final BillingReadService billingReadService;
 
     public Map<String, Object> profit(String from, String to, String type) {
         String fromDate = required(from, "From date is required");
@@ -165,6 +167,11 @@ public class StatisticsService {
         data.put("todaySales", todaySales);
         data.put("todayBills", todayBills);
         data.put("daily", daily);
+        try {
+            data.put("bills", billingReadService.monthBills(y, m));
+        } catch (Exception ignored) {
+            data.put("bills", List.of());
+        }
         return data;
     }
 
