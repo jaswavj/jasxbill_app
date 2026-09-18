@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { stockApi, stockData, stockError } from '../../../api/stock-reports/stock-report-api-service';
 import { masterApi, masterData } from '../../../api/master/master-api-service';
 import '../master/Master.css';
+import ReportActions from '../account-reports/ReportActions';
 
 type Row = {
   productName: string; code: string; stock: number; cost: number; mrp: number; discount: number;
@@ -28,8 +29,8 @@ const CurrentStockPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className="fas fa-boxes" /> Current Stock</h2>
-      <div className="mst-card" style={{ marginBottom: 12 }}>
+      <h2 className="mst-title no-print"><i className="fas fa-boxes" /> Current Stock</h2>
+      <div className="mst-card no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg">
             <label>Category</label>
@@ -37,6 +38,23 @@ const CurrentStockPage: React.FC = () => {
               <option value="0">All Categories</option>
               {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+          </div>
+          <div className="mst-actions">
+            <ReportActions
+              disabled={filtered.length === 0}
+              filename="Current_Stock"
+              sheets={[{
+                name: 'Stock',
+                columns: [
+                  { key: 'productName', label: 'Product' }, { key: 'code', label: 'Code' },
+                  { key: 'categoryName', label: 'Category' }, { key: 'stock', label: 'Stock', num: true },
+                  { key: 'unit', label: 'Unit' }, { key: 'cost', label: 'Cost', num: true },
+                  { key: 'mrp', label: 'MRP', num: true }, { key: 'totalCost', label: 'Total Cost', num: true },
+                  { key: 'totalMrp', label: 'Total MRP', num: true }, { key: 'discount', label: 'Discount', num: true },
+                ],
+                rows: filtered,
+              }]}
+            />
           </div>
         </div>
       </div>

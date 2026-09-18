@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { inventoryApi, invData, invError } from '../../../api/inventory/inventory-api-service';
 import '../master/Master.css';
+import ReportActions from '../account-reports/ReportActions';
 
 type Supplier = { id: number; name: string };
 type Row = {
@@ -39,10 +40,10 @@ const PurchaseReturnReportPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title">
+      <h2 className="mst-title no-print">
         <i className="fas fa-chart-line" /> Purchase Return Report
       </h2>
-      <div className="mst-card" style={{ marginBottom: 12 }}>
+      <div className="mst-card no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg">
             <label>From Date</label>
@@ -63,6 +64,19 @@ const PurchaseReturnReportPage: React.FC = () => {
           </div>
           <div className="mst-actions">
             <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate</button>
+            <ReportActions
+              disabled={!rows}
+              filename={`Purchase_Return_${from}_${to}`}
+              sheets={[{
+                name: 'Returns',
+                columns: [
+                  { key: 'returnNo', label: 'Return No' }, { key: 'prno', label: 'GR No' },
+                  { key: 'supplierName', label: 'Supplier' }, { key: 'total', label: 'Total', num: true },
+                  { key: 'notes', label: 'Notes' }, { key: 'dateTime', label: 'Date' }, { key: 'enteredBy', label: 'User' },
+                ],
+                rows: rows || [],
+              }]}
+            />
           </div>
         </div>
       </div>

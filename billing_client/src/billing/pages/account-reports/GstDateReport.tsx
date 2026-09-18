@@ -4,6 +4,7 @@ import { accountData, accountError } from '../../../api/account-reports/account-
 import '../master/Master.css';
 import { n2, today } from './reportHelpers';
 import { useBillDetail } from './BillDetailModal';
+import ReportActions from './ReportActions';
 
 export type GstCol = { key: string; label: string; num?: boolean; total?: boolean };
 
@@ -30,12 +31,19 @@ const GstDateReport: React.FC<Props> = ({ title, icon, columns, fetchRows }) => 
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className={icon} /> {title}</h2>
-      <div className="mst-card" style={{ marginBottom: 12 }}>
+      <h2 className="mst-title no-print"><i className={icon} /> {title}</h2>
+      <div className="mst-card no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg"><label>From Date</label><input className="mst-inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
           <div className="mst-fg"><label>To Date</label><input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
-          <div className="mst-actions"><button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button></div>
+          <div className="mst-actions">
+            <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button>
+            <ReportActions
+              disabled={!rows}
+              filename={`${title.replace(/\s+/g, '_')}_${from}_${to}`}
+              sheets={[{ name: title, columns, rows: rows || [] }]}
+            />
+          </div>
         </div>
       </div>
       {rows && (

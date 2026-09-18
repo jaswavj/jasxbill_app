@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { stockApi, stockData, stockError } from '../../../api/stock-reports/stock-report-api-service';
 import '../master/Master.css';
 import '../statistics/Stats.css';
+import ReportActions from '../account-reports/ReportActions';
 
 type Prod = { id: number; name: string };
 type Row = { id: number; productName: string; stockType: number; stock: number; date: string; time: string; notes: string; userName: string; unit: string };
@@ -38,8 +39,8 @@ const StockAdjustmentReportPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className="fas fa-sliders-h" /> Stock Adjustment</h2>
-      <div className="mst-card" style={{ marginBottom: 12 }}>
+      <h2 className="mst-title no-print"><i className="fas fa-sliders-h" /> Stock Adjustment</h2>
+      <div className="mst-card no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg"><label>From Date</label><input className="mst-inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
           <div className="mst-fg"><label>To Date</label><input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
@@ -62,6 +63,19 @@ const StockAdjustmentReportPage: React.FC = () => {
           </div>
           <div className="mst-actions">
             <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button>
+            <ReportActions
+              disabled={!rows}
+              filename={`Stock_Adjustment_${from}_${to}`}
+              sheets={[{
+                name: 'Adjustments',
+                columns: [
+                  { key: 'productName', label: 'Product' }, { key: 'stockType', label: 'Type' },
+                  { key: 'stock', label: 'Stock', num: true }, { key: 'date', label: 'Date' },
+                  { key: 'time', label: 'Time' }, { key: 'userName', label: 'User' }, { key: 'notes', label: 'Notes' },
+                ],
+                rows: (rows || []).map((r) => ({ ...r, stockType: label(r.stockType) })),
+              }]}
+            />
           </div>
         </div>
       </div>

@@ -5,6 +5,7 @@ import { masterApi, masterData } from '../../../api/master/master-api-service';
 import '../master/Master.css';
 import { n3, sum, today } from './reportHelpers';
 import { useBillDetail } from './BillDetailModal';
+import ReportActions from './ReportActions';
 
 type Opt = { id: number; name: string };
 type Row = {
@@ -38,8 +39,8 @@ const SalesByCustomerPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className="fas fa-user" /> Sales by Customer</h2>
-      <div className="mst-card" style={{ marginBottom: 12 }}>
+      <h2 className="mst-title no-print"><i className="fas fa-user" /> Sales by Customer</h2>
+      <div className="mst-card no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg"><label>From Date</label><input className="mst-inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
           <div className="mst-fg"><label>To Date</label><input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
@@ -50,7 +51,24 @@ const SalesByCustomerPage: React.FC = () => {
               {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div className="mst-actions"><button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button></div>
+          <div className="mst-actions">
+            <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button>
+            <ReportActions
+              disabled={!rows}
+              filename={`Sales_by_Customer_${from}_${to}`}
+              sheets={[{
+                name: 'Sales',
+                columns: [
+                  { key: 'billNo', label: 'Bill No' }, { key: 'total', label: 'Total', num: true },
+                  { key: 'discount', label: 'Discount', num: true }, { key: 'payable', label: 'Payable', num: true },
+                  { key: 'paid', label: 'Paid', num: true }, { key: 'balance', label: 'Balance', num: true },
+                  { key: 'pendingBalance', label: 'Pending', num: true }, { key: 'date', label: 'Date' },
+                  { key: 'time', label: 'Time' }, { key: 'biller', label: 'Biller' },
+                ],
+                rows: rows || [],
+              }]}
+            />
+          </div>
         </div>
       </div>
       {rows && (

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 import { adminApi, adminData, adminError } from '../../../api/admin/admin-api-service';
 import '../master/Master.css';
+import ReportActions from '../account-reports/ReportActions';
 
 type Row = { billId: number; billNo: string; payable: number; paid: number; reason: string; date: string; time: string; userName: string };
 
@@ -23,13 +24,26 @@ const CancelBillReportPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className="fas fa-ban" /> Cancel Bill Reports</h2>
-      <div className="mst-card" style={{ marginBottom: 12 }}>
+      <h2 className="mst-title no-print"><i className="fas fa-ban" /> Cancel Bill Reports</h2>
+      <div className="mst-card no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg"><label>From Date</label><input className="mst-inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
           <div className="mst-fg"><label>To Date</label><input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
           <div className="mst-actions">
             <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate</button>
+            <ReportActions
+              disabled={!rows}
+              filename={`Cancel_Bill_${from}_${to}`}
+              sheets={[{
+                name: 'Cancelled',
+                columns: [
+                  { key: 'billNo', label: 'Bill No' }, { key: 'payable', label: 'Payable', num: true },
+                  { key: 'paid', label: 'Paid', num: true }, { key: 'reason', label: 'Reason' },
+                  { key: 'date', label: 'Date' }, { key: 'time', label: 'Time' }, { key: 'userName', label: 'User' },
+                ],
+                rows: rows || [],
+              }]}
+            />
           </div>
         </div>
       </div>

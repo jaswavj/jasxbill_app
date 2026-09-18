@@ -3,8 +3,10 @@ import { toast } from 'react-toastify';
 import { accountApi, accountData, accountError } from '../../../api/account-reports/account-report-api-service';
 import '../master/Master.css';
 import { n2, today } from './reportHelpers';
+import ReportActions from './ReportActions';
+import { ExcelCol, ExcelSheet } from './reportExport';
 
-type Col = { key: string; label: string; num?: boolean; total?: boolean };
+type Col = ExcelCol & { total?: boolean };
 type Gstr1Data = {
   from: string;
   to: string;
@@ -22,6 +24,67 @@ const monthStart = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 };
+
+const B2B: Col[] = [
+  { key: 'gstin', label: 'GSTIN' },
+  { key: 'customer', label: 'Receiver' },
+  { key: 'billNo', label: 'Invoice No' },
+  { key: 'date', label: 'Invoice Date' },
+  { key: 'pos', label: 'Place of Supply' },
+  { key: 'invoiceType', label: 'Invoice Type' },
+  { key: 'invoiceValue', label: 'Invoice Value', num: true, total: true },
+  { key: 'rate', label: 'Rate %', num: true },
+  { key: 'taxable', label: 'Taxable Value', num: true, total: true },
+  { key: 'igst', label: 'IGST', num: true, total: true },
+  { key: 'cgst', label: 'CGST', num: true, total: true },
+  { key: 'sgst', label: 'SGST', num: true, total: true },
+  { key: 'cess', label: 'Cess', num: true, total: true },
+];
+const B2CL: Col[] = [
+  { key: 'billNo', label: 'Invoice No' },
+  { key: 'date', label: 'Invoice Date' },
+  { key: 'pos', label: 'Place of Supply' },
+  { key: 'invoiceValue', label: 'Invoice Value', num: true, total: true },
+  { key: 'rate', label: 'Rate %', num: true },
+  { key: 'taxable', label: 'Taxable Value', num: true, total: true },
+  { key: 'igst', label: 'IGST', num: true, total: true },
+  { key: 'cess', label: 'Cess', num: true, total: true },
+];
+const B2CS: Col[] = [
+  { key: 'type', label: 'Type' },
+  { key: 'pos', label: 'Place of Supply' },
+  { key: 'rate', label: 'Rate %', num: true },
+  { key: 'taxable', label: 'Taxable Value', num: true, total: true },
+  { key: 'igst', label: 'IGST', num: true, total: true },
+  { key: 'cgst', label: 'CGST', num: true, total: true },
+  { key: 'sgst', label: 'SGST', num: true, total: true },
+  { key: 'cess', label: 'Cess', num: true, total: true },
+];
+const NIL: Col[] = [
+  { key: 'description', label: 'Description' },
+  { key: 'nilRated', label: 'Nil Rated', num: true, total: true },
+  { key: 'exempted', label: 'Exempted', num: true, total: true },
+  { key: 'nonGst', label: 'Non-GST', num: true, total: true },
+];
+const HSN: Col[] = [
+  { key: 'hsn', label: 'HSN' },
+  { key: 'description', label: 'Description' },
+  { key: 'uqc', label: 'UQC' },
+  { key: 'qty', label: 'Total Qty', num: true, total: true },
+  { key: 'rate', label: 'Rate %', num: true },
+  { key: 'taxable', label: 'Taxable Value', num: true, total: true },
+  { key: 'igst', label: 'IGST', num: true, total: true },
+  { key: 'cgst', label: 'CGST', num: true, total: true },
+  { key: 'sgst', label: 'SGST', num: true, total: true },
+  { key: 'cess', label: 'Cess', num: true, total: true },
+];
+const DOCS: Col[] = [
+  { key: 'nature', label: 'Nature of Document' },
+  { key: 'srFrom', label: 'Sr. No. From' },
+  { key: 'srTo', label: 'Sr. No. To' },
+  { key: 'total', label: 'Total Number', num: true },
+  { key: 'cancelled', label: 'Cancelled', num: true },
+];
 
 const Section: React.FC<{ title: string; note?: string; columns: Col[]; rows: any[] }> = ({ title, note, columns, rows }) => (
   <div className="mst-card" style={{ marginBottom: 12 }}>
@@ -63,6 +126,30 @@ const Section: React.FC<{ title: string; note?: string; columns: Col[]; rows: an
   </div>
 );
 
+const gstrSheets = (data: Gstr1Data): ExcelSheet[] => [
+  {
+    name: 'Summary',
+    columns: [
+      { key: 'label', label: 'Particulars' },
+      { key: 'value', label: 'Amount' },
+    ],
+    rows: [
+      { label: 'Taxable Value', value: data.totals.taxable },
+      { label: 'IGST', value: data.totals.igst },
+      { label: 'CGST', value: data.totals.cgst },
+      { label: 'SGST', value: data.totals.sgst },
+      { label: 'GSTIN', value: data.companyGstin },
+      { label: 'Period', value: `${data.from} to ${data.to}` },
+    ],
+  },
+  { name: 'B2B', columns: B2B, rows: data.b2b },
+  { name: 'B2CL', columns: B2CL, rows: data.b2cl },
+  { name: 'B2CS', columns: B2CS, rows: data.b2cs },
+  { name: 'Nil Rated', columns: NIL, rows: data.nilRated },
+  { name: 'HSN', columns: HSN, rows: data.hsn },
+  { name: 'Documents', columns: DOCS, rows: data.documents },
+];
+
 const Gstr1Page: React.FC = () => {
   const [from, setFrom] = useState(monthStart());
   const [to, setTo] = useState(today());
@@ -78,24 +165,24 @@ const Gstr1Page: React.FC = () => {
 
   return (
     <div className="mst-page gstr1-page">
-      <h2 className="mst-title"><i className="fas fa-file-alt" /> GSTR-1</h2>
-      <div className="mst-card gstr1-filters" style={{ marginBottom: 12 }}>
+      <h2 className="mst-title no-print"><i className="fas fa-file-alt" /> GSTR-1</h2>
+      <div className="mst-card gstr1-filters no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg"><label>From Date</label><input className="mst-inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
           <div className="mst-fg"><label>To Date</label><input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
           <div className="mst-actions">
             <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate GSTR-1</button>
-            {data && <button className="mst-btn mst-btn-outline" type="button" onClick={() => window.print()}>Print</button>}
+            <ReportActions disabled={!data} filename={`GSTR-1_${from}_${to}`} sheets={data ? gstrSheets(data) : []} />
           </div>
         </div>
       </div>
       {data && (
-        <>
+        <div className="report-print-area">
           <div className="mst-card" style={{ marginBottom: 12 }}>
             <div className="mst-card-h">Outward supplies {data.from} — {data.to}</div>
             <div className="mst-card-b">
               <div className="mst-note" style={{ marginBottom: 10 }}>
-                Tax invoices only (is_tax_bill = 1). GSTIN: {data.companyGstin || 'Not set in Company Details'}.
+                Tax invoices only. GSTIN: {data.companyGstin || 'Not set in Company Details'}.
               </div>
               <table className="mst-table">
                 <thead>
@@ -117,93 +204,13 @@ const Gstr1Page: React.FC = () => {
               </table>
             </div>
           </div>
-          <Section
-            title="4 — B2B (supplies to registered persons)"
-            note="Invoices where the customer GSTIN is 15 characters."
-            columns={[
-              { key: 'gstin', label: 'GSTIN' },
-              { key: 'customer', label: 'Receiver' },
-              { key: 'billNo', label: 'Invoice No' },
-              { key: 'date', label: 'Invoice Date' },
-              { key: 'pos', label: 'Place of Supply' },
-              { key: 'invoiceType', label: 'Invoice Type' },
-              { key: 'invoiceValue', label: 'Invoice Value', num: true, total: true },
-              { key: 'rate', label: 'Rate %', num: true },
-              { key: 'taxable', label: 'Taxable Value', num: true, total: true },
-              { key: 'igst', label: 'IGST', num: true, total: true },
-              { key: 'cgst', label: 'CGST', num: true, total: true },
-              { key: 'sgst', label: 'SGST', num: true, total: true },
-              { key: 'cess', label: 'Cess', num: true, total: true },
-            ]}
-            rows={data.b2b}
-          />
-          <Section
-            title="5 — B2C Large (inter-state unregistered, invoice over ₹1,00,000)"
-            columns={[
-              { key: 'billNo', label: 'Invoice No' },
-              { key: 'date', label: 'Invoice Date' },
-              { key: 'pos', label: 'Place of Supply' },
-              { key: 'invoiceValue', label: 'Invoice Value', num: true, total: true },
-              { key: 'rate', label: 'Rate %', num: true },
-              { key: 'taxable', label: 'Taxable Value', num: true, total: true },
-              { key: 'igst', label: 'IGST', num: true, total: true },
-              { key: 'cess', label: 'Cess', num: true, total: true },
-            ]}
-            rows={data.b2cl}
-          />
-          <Section
-            title="7 — B2C Others (rate-wise)"
-            note="Unregistered counter sales, including intra-state and inter-state invoices up to ₹1,00,000. Type OE = other than e-commerce."
-            columns={[
-              { key: 'type', label: 'Type' },
-              { key: 'pos', label: 'Place of Supply' },
-              { key: 'rate', label: 'Rate %', num: true },
-              { key: 'taxable', label: 'Taxable Value', num: true, total: true },
-              { key: 'igst', label: 'IGST', num: true, total: true },
-              { key: 'cgst', label: 'CGST', num: true, total: true },
-              { key: 'sgst', label: 'SGST', num: true, total: true },
-              { key: 'cess', label: 'Cess', num: true, total: true },
-            ]}
-            rows={data.b2cs}
-          />
-          <Section
-            title="8 — Nil rated / exempt / non-GST"
-            columns={[
-              { key: 'description', label: 'Description' },
-              { key: 'nilRated', label: 'Nil Rated', num: true, total: true },
-              { key: 'exempted', label: 'Exempted', num: true, total: true },
-              { key: 'nonGst', label: 'Non-GST', num: true, total: true },
-            ]}
-            rows={data.nilRated}
-          />
-          <Section
-            title="12 — HSN-wise summary of outward supplies"
-            columns={[
-              { key: 'hsn', label: 'HSN' },
-              { key: 'description', label: 'Description' },
-              { key: 'uqc', label: 'UQC' },
-              { key: 'qty', label: 'Total Qty', num: true, total: true },
-              { key: 'rate', label: 'Rate %', num: true },
-              { key: 'taxable', label: 'Taxable Value', num: true, total: true },
-              { key: 'igst', label: 'IGST', num: true, total: true },
-              { key: 'cgst', label: 'CGST', num: true, total: true },
-              { key: 'sgst', label: 'SGST', num: true, total: true },
-              { key: 'cess', label: 'Cess', num: true, total: true },
-            ]}
-            rows={data.hsn}
-          />
-          <Section
-            title="13 — Documents issued"
-            columns={[
-              { key: 'nature', label: 'Nature of Document' },
-              { key: 'srFrom', label: 'Sr. No. From' },
-              { key: 'srTo', label: 'Sr. No. To' },
-              { key: 'total', label: 'Total Number', num: true },
-              { key: 'cancelled', label: 'Cancelled', num: true },
-            ]}
-            rows={data.documents}
-          />
-        </>
+          <Section title="4 — B2B (supplies to registered persons)" note="Invoices where the customer GSTIN is 15 characters." columns={B2B} rows={data.b2b} />
+          <Section title="5 — B2C Large (inter-state unregistered, invoice over ₹1,00,000)" columns={B2CL} rows={data.b2cl} />
+          <Section title="7 — B2C Others (rate-wise)" note="Unregistered counter sales, including intra-state and inter-state invoices up to ₹1,00,000. Type OE = other than e-commerce." columns={B2CS} rows={data.b2cs} />
+          <Section title="8 — Nil rated / exempt / non-GST" columns={NIL} rows={data.nilRated} />
+          <Section title="12 — HSN-wise summary of outward supplies" columns={HSN} rows={data.hsn} />
+          <Section title="13 — Documents issued" columns={DOCS} rows={data.documents} />
+        </div>
       )}
     </div>
   );

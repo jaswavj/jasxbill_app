@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { stockApi, stockData, stockError } from '../../../api/stock-reports/stock-report-api-service';
 import '../master/Master.css';
 import '../statistics/Stats.css';
+import ReportActions from '../account-reports/ReportActions';
 
 type Prod = { id: number; name: string };
 type Row = { productName: string; stockIn: number; stockOut: number; stockNow: number; notes: string; dateTime: string; userName: string; adjType: number; unit: string };
@@ -30,8 +31,8 @@ const ProductTransactionPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className="fas fa-exchange-alt" /> Product Transaction</h2>
-      <div className="mst-card" style={{ marginBottom: 12 }}>
+      <h2 className="mst-title no-print"><i className="fas fa-exchange-alt" /> Product Transaction</h2>
+      <div className="mst-card no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg"><label>From Date</label><input className="mst-inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
           <div className="mst-fg"><label>To Date</label><input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
@@ -44,6 +45,20 @@ const ProductTransactionPage: React.FC = () => {
           </div>
           <div className="mst-actions">
             <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button>
+            <ReportActions
+              disabled={!rows}
+              filename={`Product_Transaction_${from}_${to}`}
+              sheets={[{
+                name: 'Transactions',
+                columns: [
+                  { key: 'productName', label: 'Product' }, { key: 'stockIn', label: 'Stock in', num: true },
+                  { key: 'stockOut', label: 'Stock out', num: true }, { key: 'stockNow', label: 'Stock now', num: true },
+                  { key: 'notes', label: 'Notes' }, { key: 'dateTime', label: 'Date/Time' },
+                  { key: 'userName', label: 'User' },
+                ],
+                rows: rows || [],
+              }]}
+            />
           </div>
         </div>
       </div>

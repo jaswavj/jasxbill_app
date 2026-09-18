@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { inventoryApi, invData, invError } from '../../../api/inventory/inventory-api-service';
 import '../master/Master.css';
 import '../BillingPage.css';
+import ReportActions from '../account-reports/ReportActions';
 
 type Supplier = { id: number; name: string };
 type Row = {
@@ -69,10 +70,10 @@ const PurchaseReportPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title">
+      <h2 className="mst-title no-print">
         <i className="fas fa-chart-bar" /> Purchase Report
       </h2>
-      <div className="mst-card" style={{ marginBottom: 12 }}>
+      <div className="mst-card no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg">
             <label>From Date</label>
@@ -93,6 +94,20 @@ const PurchaseReportPage: React.FC = () => {
           </div>
           <div className="mst-actions">
             <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button>
+            <ReportActions
+              disabled={rows.length === 0}
+              filename={`Purchase_Report_${from}_${to}`}
+              sheets={[{
+                name: 'Purchases',
+                columns: [
+                  { key: 'invoiceNo', label: 'Inv No' }, { key: 'invoiceDate', label: 'Invoice Date' },
+                  { key: 'supplierName', label: 'Supplier' }, { key: 'total', label: 'Total', num: true },
+                  { key: 'paid', label: 'Paid', num: true }, { key: 'balance', label: 'Balance', num: true },
+                  { key: 'entryDate', label: 'Date' }, { key: 'entryTime', label: 'Time' }, { key: 'userName', label: 'User' },
+                ],
+                rows,
+              }]}
+            />
           </div>
         </div>
       </div>

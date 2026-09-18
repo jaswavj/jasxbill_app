@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { adminApi, adminData, adminError } from '../../../api/admin/admin-api-service';
 import '../master/Master.css';
 import '../credit/Credit.css';
+import ReportActions from '../account-reports/ReportActions';
 
 type Row = {
   id: number; dateTime: string; billNo: string; customer: string;
@@ -28,8 +29,8 @@ const ExchangeReportPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className="fas fa-undo" /> Exchange &amp; Return Report</h2>
-      <div className="mst-card" style={{ marginBottom: 12 }}>
+      <h2 className="mst-title no-print"><i className="fas fa-undo" /> Exchange &amp; Return Report</h2>
+      <div className="mst-card no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg"><label>From Date</label><input className="mst-inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
           <div className="mst-fg"><label>To Date</label><input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
@@ -43,6 +44,20 @@ const ExchangeReportPage: React.FC = () => {
           </div>
           <div className="mst-actions">
             <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate</button>
+            <ReportActions
+              disabled={!rows}
+              filename={`Exchange_Report_${from}_${to}`}
+              sheets={[{
+                name: 'Exchange',
+                columns: [
+                  { key: 'dateTime', label: 'Date' }, { key: 'billNo', label: 'Bill No' },
+                  { key: 'customer', label: 'Customer' }, { key: 'oldProd', label: 'Old Product' },
+                  { key: 'newProd', label: 'New Product' }, { key: 'points', label: 'Points', num: true },
+                  { key: 'staff', label: 'Staff' },
+                ],
+                rows: rows || [],
+              }]}
+            />
           </div>
         </div>
       </div>

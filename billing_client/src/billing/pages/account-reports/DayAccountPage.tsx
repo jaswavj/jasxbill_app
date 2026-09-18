@@ -5,6 +5,7 @@ import '../master/Master.css';
 import '../statistics/Stats.css';
 import { n2, today } from './reportHelpers';
 import { useBillDetail } from './BillDetailModal';
+import ReportActions from './ReportActions';
 
 type Cat = { id: number; name: string; amount: number };
 type Data = {
@@ -49,12 +50,34 @@ const DayAccountPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className="fas fa-calendar-day" /> Day Account</h2>
-      <div className="mst-card" style={{ marginBottom: 12 }}>
+      <h2 className="mst-title no-print"><i className="fas fa-calendar-day" /> Day Account</h2>
+      <div className="mst-card no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg"><label>From Date</label><input className="mst-inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
           <div className="mst-fg"><label>To Date</label><input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
-          <div className="mst-actions"><button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button></div>
+          <div className="mst-actions">
+            <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button>
+            <ReportActions
+              disabled={!data}
+              filename={`Day_Account_${from}_${to}`}
+              sheets={[
+                {
+                  name: 'Categories',
+                  columns: [{ key: 'name', label: 'Category' }, { key: 'amount', label: 'Collection', num: true }],
+                  rows: data?.categories || [],
+                },
+                {
+                  name: 'Payments',
+                  columns: [
+                    { key: 'cash', label: 'Cash', num: true }, { key: 'bank', label: 'Bank', num: true },
+                    { key: 'discount', label: 'Discount', num: true }, { key: 'due', label: 'Due', num: true },
+                    { key: 'total', label: 'Total', num: true },
+                  ],
+                  rows: data ? [data.payments] : [],
+                },
+              ]}
+            />
+          </div>
         </div>
       </div>
       {data && (

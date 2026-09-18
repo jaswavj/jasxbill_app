@@ -263,13 +263,13 @@ const ProductPage: React.FC = () => {
             <table className="mst-table">
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th>Action</th>
+                  <th style={{ width: '8%' }}>#</th>
+                  <th style={{ width: '10%' }}>Action</th>
                   <th>Name</th>
-                  <th>Code</th>
-                  <th>{heads.head1}</th>
-                  <th className="num">MRP</th>
-                  <th className="num">Stock</th>
+                  <th style={{ width: '12%' }}>Code</th>
+                  <th style={{ width: '18%' }}>{heads.head1}</th>
+                  <th className="num" style={{ width: '14%' }}>MRP</th>
+                  <th className="num" style={{ width: '14%' }}>Stock</th>
                 </tr>
               </thead>
               <tbody>

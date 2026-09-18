@@ -4,6 +4,7 @@ import { statsApi, statsData, statsError } from '../../../api/statistics/statist
 import '../master/Master.css';
 import '../credit/Credit.css';
 import './Stats.css';
+import ReportActions from '../account-reports/ReportActions';
 
 type Cat = { catId: number; catName: string; totalQty: number; totalAmt: number; billCount: number; productCount: number; topProduct: string; topProductQty: number };
 type Prod = { productId: number; productName: string; totalQty: number; totalAmt: number; billCount: number; avgPrice: number };
@@ -64,8 +65,8 @@ const CategorySalesPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className="fas fa-layer-group" /> Category Sales Statistics</h2>
-      <div className="mst-card" style={{ marginBottom: 12 }}>
+      <h2 className="mst-title no-print"><i className="fas fa-layer-group" /> Category Sales Statistics</h2>
+      <div className="mst-card no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg"><label>From Date</label><input className="mst-inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
           <div className="mst-fg"><label>To Date</label><input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
@@ -74,6 +75,19 @@ const CategorySalesPage: React.FC = () => {
             <button className="mst-btn mst-btn-outline" type="button" onClick={() => setRange('today')}>Today</button>
             <button className="mst-btn mst-btn-outline" type="button" onClick={() => setRange('week')}>7d</button>
             <button className="mst-btn mst-btn-outline" type="button" onClick={() => setRange('month')}>Month</button>
+            <ReportActions
+              disabled={!data}
+              filename={`Category_Sales_${from}_${to}`}
+              sheets={[{
+                name: 'Categories',
+                columns: [
+                  { key: 'catName', label: 'Category' }, { key: 'totalQty', label: 'Qty', num: true },
+                  { key: 'totalAmt', label: 'Amount', num: true }, { key: 'billCount', label: 'Bills', num: true },
+                  { key: 'productCount', label: 'Products', num: true }, { key: 'topProduct', label: 'Top Product' },
+                ],
+                rows,
+              }]}
+            />
           </div>
         </div>
       </div>

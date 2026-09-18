@@ -5,6 +5,7 @@ import { adminApi, adminData } from '../../../api/admin/admin-api-service';
 import '../master/Master.css';
 import { n3, sum, today } from './reportHelpers';
 import { useBillDetail } from './BillDetailModal';
+import ReportActions from './ReportActions';
 
 type User = { id: number; name: string };
 type Bill = {
@@ -49,8 +50,8 @@ const SalesReportPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className="fas fa-file-invoice" /> Sales Report</h2>
-      <div className="mst-card" style={{ marginBottom: 12 }}>
+      <h2 className="mst-title no-print"><i className="fas fa-file-invoice" /> Sales Report</h2>
+      <div className="mst-card no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg"><label>From Date</label><input className="mst-inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
           <div className="mst-fg"><label>To Date</label><input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
@@ -88,7 +89,37 @@ const SalesReportPage: React.FC = () => {
               <option value="2">Non GST</option>
             </select>
           </div>
-          <div className="mst-actions"><button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button></div>
+          <div className="mst-actions">
+            <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button>
+            <ReportActions
+              disabled={!bills}
+              filename={`Sales_Report_${from}_${to}`}
+              sheets={[
+                {
+                  name: 'Sales',
+                  columns: [
+                    { key: 'billNo', label: 'Bill No' }, { key: 'customer', label: 'Customer' },
+                    { key: 'total', label: 'Total', num: true }, { key: 'payable', label: 'Payable', num: true },
+                    { key: 'paid', label: 'Paid', num: true }, { key: 'cash', label: 'Cash', num: true },
+                    { key: 'bank', label: 'Bank', num: true }, { key: 'balance', label: 'Balance', num: true },
+                    { key: 'pendingBalance', label: 'Pending', num: true }, { key: 'date', label: 'Date' },
+                    { key: 'time', label: 'Time' }, { key: 'biller', label: 'Biller' },
+                  ],
+                  rows: bills || [],
+                },
+                {
+                  name: 'Due Collection',
+                  columns: [
+                    { key: 'customer', label: 'Customer' }, { key: 'balance', label: 'Balance', num: true },
+                    { key: 'cashPaid', label: 'Cash Paid', num: true }, { key: 'bankPaid', label: 'Bank Paid', num: true },
+                    { key: 'mode', label: 'Mode' }, { key: 'bankOption', label: 'Bank Option' },
+                    { key: 'date', label: 'Date' }, { key: 'time', label: 'Time' }, { key: 'biller', label: 'Biller' },
+                  ],
+                  rows: dues,
+                },
+              ]}
+            />
+          </div>
         </div>
       </div>
       {bills && (

@@ -908,12 +908,12 @@ const BillingPage: React.FC = () => {
 
       {keysOpen && (
         <div className="pos-modal-back" onClick={() => setKeysOpen(false)}>
-          <div className="pos-modal" style={{ width: 'min(420px, 100%)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="pos-modal pos-keys-modal" onClick={(e) => e.stopPropagation()}>
             <div className="pos-modal-head">
               <h4>Shortcut keys</h4>
               <button className="pos-btn pos-btn-outline" type="button" onClick={() => setKeysOpen(false)}>Close</button>
             </div>
-            <table className="pos-table">
+            <table className="pos-table pos-table-fit">
               <tbody>
                 <tr><td>Hold bill</td><td><kbd className="pos-kbd">Alt</kbd> + <kbd className="pos-kbd">O</kbd></td></tr>
                 <tr><td>Refresh / new bill</td><td><kbd className="pos-kbd">Alt</kbd> + <kbd className="pos-kbd">R</kbd></td></tr>

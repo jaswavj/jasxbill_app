@@ -4,6 +4,7 @@ import { accountApi, accountData, accountError } from '../../../api/account-repo
 import '../master/Master.css';
 import { n2, today } from './reportHelpers';
 import { useBillDetail } from './BillDetailModal';
+import ReportActions from './ReportActions';
 
 type BookRow = { category: string; inAmt: number; outAmt: number };
 type DetailRow = { category: string; cash: number; credit: number; bank: number; total: number };
@@ -139,14 +140,23 @@ const DayBookPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className="fas fa-book" /> Day Book</h2>
-      <div className="mst-card" style={{ marginBottom: 12 }}>
+      <h2 className="mst-title no-print"><i className="fas fa-book" /> Day Book</h2>
+      <div className="mst-card no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg"><label>From Date</label><input className="mst-inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
           <div className="mst-fg"><label>To Date</label><input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
           <div className="mst-actions">
             <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Day Book</button>
             <button className="mst-btn mst-btn-outline" type="button" onClick={() => setShowOb((v) => !v)}>Opening Balance</button>
+            <ReportActions
+              disabled={!data}
+              filename={`Day_Book_${from}_${to}`}
+              sheets={[
+                { name: 'Cash Book', columns: [{ key: 'category', label: 'Description' }, { key: 'inAmt', label: 'In', num: true }, { key: 'outAmt', label: 'Out', num: true }], rows: data?.cashBook || [] },
+                { name: 'Bank Book', columns: [{ key: 'category', label: 'Description' }, { key: 'inAmt', label: 'In', num: true }, { key: 'outAmt', label: 'Out', num: true }], rows: data?.bankBook || [] },
+                { name: 'Sales', columns: [{ key: 'date', label: 'Date' }, { key: 'billNo', label: 'Bill No' }, { key: 'status', label: 'Status' }, { key: 'saleType', label: 'Type' }, { key: 'customer', label: 'Customer' }, { key: 'payable', label: 'Payable', num: true }], rows: data?.sales || [] },
+              ]}
+            />
           </div>
         </div>
       </div>

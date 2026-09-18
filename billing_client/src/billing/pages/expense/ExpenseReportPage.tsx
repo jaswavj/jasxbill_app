@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { expenseApi, expenseData, expenseError } from '../../../api/expense/expense-api-service';
 import '../master/Master.css';
 import '../credit/Credit.css';
+import ReportActions from '../account-reports/ReportActions';
 
 type TypeRow = { id: number; name: string };
 type Row = { id: number; dateTime: string; typeName: string; content: string; description: string; amount: number; userName: string };
@@ -34,8 +35,8 @@ const ExpenseReportPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className="fas fa-chart-line" /> Expense Report</h2>
-      <div className="mst-card" style={{ marginBottom: 12 }}>
+      <h2 className="mst-title no-print"><i className="fas fa-chart-line" /> Expense Report</h2>
+      <div className="mst-card no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg"><label>From Date</label><input className="mst-inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
           <div className="mst-fg"><label>To Date</label><input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
@@ -48,6 +49,19 @@ const ExpenseReportPage: React.FC = () => {
           </div>
           <div className="mst-actions">
             <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate</button>
+            <ReportActions
+              disabled={!rows}
+              filename={`Expense_Report_${from}_${to}`}
+              sheets={[{
+                name: 'Expenses',
+                columns: [
+                  { key: 'dateTime', label: 'Date' }, { key: 'typeName', label: 'Type' },
+                  { key: 'content', label: 'Content' }, { key: 'description', label: 'Description' },
+                  { key: 'amount', label: 'Amount', num: true }, { key: 'userName', label: 'Entry By' },
+                ],
+                rows: rows || [],
+              }]}
+            />
           </div>
         </div>
       </div>

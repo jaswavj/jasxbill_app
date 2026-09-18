@@ -5,6 +5,7 @@ import { billingApi } from '../../../api/billing/billing-api-service';
 import '../master/Master.css';
 import '../credit/Credit.css';
 import './Stats.css';
+import ReportActions from '../account-reports/ReportActions';
 
 type Hit = { id: number; name: string; code?: string };
 type Sec = { count: number; totalQty: number; totalAmt: number; totalCost?: number; outCount?: number; inCount?: number; totalAdd?: number; totalRemove?: number; rows: any[] };
@@ -87,8 +88,8 @@ const ProductAnalysisPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className="fas fa-cube" /> Product Analysis Report</h2>
-      <div className="mst-card" style={{ marginBottom: 12 }}>
+      <h2 className="mst-title no-print"><i className="fas fa-cube" /> Product Analysis Report</h2>
+      <div className="mst-card no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg crd-search-wrap">
             <label>Product <span className="req">*</span></label>
@@ -106,6 +107,18 @@ const ProductAnalysisPage: React.FC = () => {
           <div className="mst-actions">
             <button className="mst-btn mst-btn-primary" type="button" onClick={generate}>Generate Report</button>
             <button className="mst-btn mst-btn-outline" type="button" onClick={() => { setProd(null); setTerm(''); setData(null); setHits([]); }}>Reset</button>
+            <ReportActions
+              disabled={!data}
+              filename={`Product_Analysis_${from}_${to}`}
+              sheets={[{
+                name: tab,
+                columns: [
+                  { key: 'billNo', label: 'Ref' }, { key: 'date', label: 'Date' },
+                  { key: 'qty', label: 'Qty', num: true }, { key: 'total', label: 'Amount', num: true },
+                ],
+                rows: data?.[tab]?.rows || [],
+              }]}
+            />
           </div>
         </div>
       </div>

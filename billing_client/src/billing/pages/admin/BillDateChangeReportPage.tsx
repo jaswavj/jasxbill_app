@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 import { adminApi, adminData, adminError } from '../../../api/admin/admin-api-service';
 import '../master/Master.css';
+import ReportActions from '../account-reports/ReportActions';
 
 type Row = { billId: number; billNo: string; oldDate: string; newDate: string; changeDate: string; changeTime: string; userName: string };
 
@@ -22,13 +23,26 @@ const BillDateChangeReportPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className="fas fa-calendar-alt" /> Bill Date Change Report</h2>
-      <div className="mst-card" style={{ marginBottom: 12 }}>
+      <h2 className="mst-title no-print"><i className="fas fa-calendar-alt" /> Bill Date Change Report</h2>
+      <div className="mst-card no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg"><label>From Date</label><input className="mst-inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
           <div className="mst-fg"><label>To Date</label><input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
           <div className="mst-actions">
             <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate</button>
+            <ReportActions
+              disabled={!rows}
+              filename={`Bill_Date_Change_${from}_${to}`}
+              sheets={[{
+                name: 'Date Changes',
+                columns: [
+                  { key: 'billNo', label: 'Bill No' }, { key: 'oldDate', label: 'Old Date' },
+                  { key: 'newDate', label: 'New Date' }, { key: 'changeDate', label: 'Changed On' },
+                  { key: 'changeTime', label: 'Time' }, { key: 'userName', label: 'User' },
+                ],
+                rows: rows || [],
+              }]}
+            />
           </div>
         </div>
       </div>
