@@ -130,6 +130,41 @@
   grid-column: 1 / -1;
 }
 
+.mst-other {
+  grid-column: 1 / -1;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 14%, transparent);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--color-bg-page);
+}
+
+.mst-other-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.mst-other-btn:hover {
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+
+.mst-other-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 0 12px 12px;
+  border-top: 1px solid color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
 .mst-btn {
   display: inline-flex;
   align-items: center;
@@ -309,6 +344,10 @@
   }
 
   .mst-form {
+    grid-template-columns: 1fr;
+  }
+
+  .mst-other-body {
     grid-template-columns: 1fr;
   }
 }

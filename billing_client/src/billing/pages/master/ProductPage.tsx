@@ -55,6 +55,7 @@ const ProductPage: React.FC = () => {
   const [form, setForm] = useState(emptyForm);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
+  const [otherOpen, setOtherOpen] = useState(false);
 
   const load = async () => {
     try {
@@ -121,6 +122,7 @@ const ProductPage: React.FC = () => {
         toast.success(form.id ? `${heads.head3} updated` : `${heads.head3} added`);
       }
       setForm(emptyForm);
+      setOtherOpen(false);
       await load();
     } catch (err) {
       toast.error(masterError(err, 'Save failed'));
@@ -171,22 +173,14 @@ const ProductPage: React.FC = () => {
               <input className="mst-inp" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
             </div>
             <div className="mst-fg">
-              <label>HSN Code</label>
-              <input className="mst-inp" value={form.hsn} onChange={(e) => setForm({ ...form, hsn: e.target.value })} />
-            </div>
-            <div className="mst-fg">
-              <label>Unit/Size <span className="req">*</span></label>
-              <select className="mst-sel" value={form.unitId} onChange={(e) => setForm({ ...form, unitId: e.target.value })}>
-                <option value="">Select Unit/Size</option>
-                {lookups.units.map((u) => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
+              <label>GST %</label>
+              <select className="mst-sel" value={form.gst} onChange={(e) => setForm({ ...form, gst: e.target.value })}>
+                <option value="0">0%</option>
+                <option value="5">5%</option>
+                <option value="12">12%</option>
+                <option value="18">18%</option>
+                <option value="28">28%</option>
               </select>
-            </div>
-            <div className="mst-fg">
-              <label>Stock</label>
-              <input className="mst-inp" type="number" min="0" step="0.01" disabled={form.id > 0} value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
-              {selectedUnit?.convertionUnit && <span className="mst-note">Conversion: {selectedUnit.convertionUnit}</span>}
             </div>
             <div className="mst-fg">
               <label>Cost Price <span className="req">*</span></label>
@@ -196,42 +190,60 @@ const ProductPage: React.FC = () => {
               <label>MRP <span className="req">*</span></label>
               <input className="mst-inp" type="number" step="0.001" value={form.mrp} onChange={(e) => setForm({ ...form, mrp: e.target.value })} />
             </div>
-            <div className="mst-fg">
-              <label>Commission (Rs)</label>
-              <input className="mst-inp" type="number" step="0.01" value={form.commission} onChange={(e) => setForm({ ...form, commission: e.target.value })} />
-            </div>
-            <div className="mst-fg">
-              <label>Discount Type</label>
-              <select
-                className="mst-sel"
-                value={form.discType}
-                onChange={(e) => setForm({ ...form, discType: e.target.value, discount: e.target.value === '0' ? '0.00' : form.discount })}
-              >
-                <option value="0">Select Type</option>
-                <option value="1">Rs</option>
-                <option value="2">%</option>
-              </select>
-            </div>
-            <div className="mst-fg">
-              <label>Discount</label>
-              <input
-                className="mst-inp"
-                type="number"
-                step="0.01"
-                readOnly={form.discType === '0'}
-                value={form.discount}
-                onChange={(e) => setForm({ ...form, discount: e.target.value })}
-              />
-            </div>
-            <div className="mst-fg">
-              <label>GST %</label>
-              <select className="mst-sel" value={form.gst} onChange={(e) => setForm({ ...form, gst: e.target.value })}>
-                <option value="0">0%</option>
-                <option value="5">5%</option>
-                <option value="12">12%</option>
-                <option value="18">18%</option>
-                <option value="28">28%</option>
-              </select>
+            <div className="mst-other">
+              <button className="mst-other-btn" type="button" onClick={() => setOtherOpen((open) => !open)}>
+                <span>Other details</span>
+                <i className={`fas fa-chevron-${otherOpen ? 'up' : 'down'}`} />
+              </button>
+              {otherOpen && (
+                <div className="mst-other-body">
+                  <div className="mst-fg">
+                    <label>HSN Code</label>
+                    <input className="mst-inp" value={form.hsn} onChange={(e) => setForm({ ...form, hsn: e.target.value })} />
+                  </div>
+                  <div className="mst-fg">
+                    <label>Unit/Size <span className="req">*</span></label>
+                    <select className="mst-sel" value={form.unitId} onChange={(e) => setForm({ ...form, unitId: e.target.value })}>
+                      <option value="">Select Unit/Size</option>
+                      {lookups.units.map((u) => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="mst-fg">
+                    <label>Stock</label>
+                    <input className="mst-inp" type="number" min="0" step="0.01" disabled={form.id > 0} value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
+                    {selectedUnit?.convertionUnit && <span className="mst-note">Conversion: {selectedUnit.convertionUnit}</span>}
+                  </div>
+                  <div className="mst-fg">
+                    <label>Commission (Rs)</label>
+                    <input className="mst-inp" type="number" step="0.01" value={form.commission} onChange={(e) => setForm({ ...form, commission: e.target.value })} />
+                  </div>
+                  <div className="mst-fg">
+                    <label>Discount Type</label>
+                    <select
+                      className="mst-sel"
+                      value={form.discType}
+                      onChange={(e) => setForm({ ...form, discType: e.target.value, discount: e.target.value === '0' ? '0.00' : form.discount })}
+                    >
+                      <option value="0">Select Type</option>
+                      <option value="1">Rs</option>
+                      <option value="2">%</option>
+                    </select>
+                  </div>
+                  <div className="mst-fg">
+                    <label>Discount</label>
+                    <input
+                      className="mst-inp"
+                      type="number"
+                      step="0.01"
+                      readOnly={form.discType === '0'}
+                      value={form.discount}
+                      onChange={(e) => setForm({ ...form, discount: e.target.value })}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
             {form.id > 0 && (
               <label className="mst-block mst-check span-2">
@@ -244,7 +256,7 @@ const ProductPage: React.FC = () => {
                 {form.id ? 'Update' : `Add ${heads.head3}`}
               </button>
               {form.id > 0 && (
-                <button className="mst-btn mst-btn-outline" type="button" onClick={() => setForm(emptyForm)}>
+                <button className="mst-btn mst-btn-outline" type="button" onClick={() => { setForm(emptyForm); setOtherOpen(false); }}>
                   Cancel
                 </button>
               )}
