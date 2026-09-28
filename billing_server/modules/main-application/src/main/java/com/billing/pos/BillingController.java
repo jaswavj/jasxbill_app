@@ -28,6 +28,11 @@ public class BillingController {
         return ok(readService.options(currentUserId()));
     }
 
+    @GetMapping("/menu")
+    public ResponseDO menu() {
+        return ok(readService.menu());
+    }
+
     @GetMapping("/products")
     public ResponseDO searchProducts(@RequestParam String term) {
         return ok(readService.searchProductNames(term));

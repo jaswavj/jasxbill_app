@@ -46,11 +46,12 @@ public class AdminService {
     @PostConstruct
     public void init() {
         ensureEditLogTable();
+        ensureBillingTypeColumn();
     }
 
     public CompanyDetailsData company() {
         List<CompanyDetailsData> rows = jdbcTemplate.query(
-                "SELECT id, shop_name, address, gstin, print_type, printer_name, bank_details, barcode_printer FROM company_details LIMIT 1",
+                "SELECT id, shop_name, address, gstin, print_type, IFNULL(billing_type, 1) AS billing_type, printer_name, bank_details, barcode_printer FROM company_details LIMIT 1",
                 (rs, i) -> {
                     CompanyDetailsData data = new CompanyDetailsData();
                     data.setId(rs.getLong("id"));
@@ -58,6 +59,7 @@ public class AdminService {
                     data.setAddress(nz(rs.getString("address")));
                     data.setGstin(nz(rs.getString("gstin")));
                     data.setPrintType(rs.getInt("print_type"));
+                    data.setBillingType(normalizeBillingType(rs.getInt("billing_type")));
                     data.setPrinterName(nz(rs.getString("printer_name")));
                     data.setBankDetails(nz(rs.getString("bank_details")));
                     data.setBarcodePrinter(nz(rs.getString("barcode_printer")));
@@ -67,6 +69,7 @@ public class AdminService {
         if (rows.isEmpty()) {
             CompanyDetailsData empty = new CompanyDetailsData();
             empty.setPrintType(1);
+            empty.setBillingType(1);
             empty.setShopName("");
             empty.setAddress("");
             empty.setGstin("");
@@ -96,16 +99,17 @@ public class AdminService {
         }
         String bankDetails = nz(request.getBankDetails()).trim();
         String barcodePrinter = nz(request.getBarcodePrinter()).trim();
+        int billingType = normalizeBillingType(request.getBillingType());
         Long id = jdbcTemplate.query("SELECT id FROM company_details LIMIT 1", rs -> rs.next() ? rs.getLong(1) : null);
         if (id != null) {
             jdbcTemplate.update(
-                    "UPDATE company_details SET shop_name=?, address=?, gstin=?, print_type=?, printer_name=?, bank_details=?, barcode_printer=? WHERE id=?",
-                    shopName, address, gstin, printType, printerName, bankDetails, barcodePrinter, id
+                    "UPDATE company_details SET shop_name=?, address=?, gstin=?, print_type=?, billing_type=?, printer_name=?, bank_details=?, barcode_printer=? WHERE id=?",
+                    shopName, address, gstin, printType, billingType, printerName, bankDetails, barcodePrinter, id
             );
         } else {
             jdbcTemplate.update(
-                    "INSERT INTO company_details (shop_name, address, gstin, print_type, printer_name, bank_details, barcode_printer) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    shopName, address, gstin, printType, printerName, bankDetails, barcodePrinter
+                    "INSERT INTO company_details (shop_name, address, gstin, print_type, billing_type, printer_name, bank_details, barcode_printer) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    shopName, address, gstin, printType, billingType, printerName, bankDetails, barcodePrinter
             );
         }
     }
@@ -831,6 +835,25 @@ public class AdminService {
                 "INSERT INTO prod_bill_edit_log (bill_id, bill_display, action, details, uid, date, time) VALUES (?, ?, ?, ?, ?, CURDATE(), CURTIME())",
                 billId, billDisplay, action, details, uid
         );
+    }
+
+    private void ensureBillingTypeColumn() {
+        try {
+            Integer found = jdbcTemplate.query(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS " +
+                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'company_details' AND COLUMN_NAME = 'billing_type'",
+                    rs -> rs.next() ? rs.getInt(1) : 0
+            );
+            if (found == null || found == 0) {
+                jdbcTemplate.execute("ALTER TABLE company_details ADD COLUMN billing_type INT NOT NULL DEFAULT 1");
+            }
+        } catch (Exception ignored) {
+            // existing databases keep Type (1) until the column can be added
+        }
+    }
+
+    private int normalizeBillingType(Integer billingType) {
+        return billingType != null && billingType == 2 ? 2 : 1;
     }
 
     private void ensureEditLogTable() {

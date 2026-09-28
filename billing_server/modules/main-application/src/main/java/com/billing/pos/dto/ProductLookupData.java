@@ -7,6 +7,7 @@ public class ProductLookupData {
     private Long id;
     private String code;
     private String name;
+    private Long categoryId;
     private Double mrp;
     private Double discount;
     private Long batchId;

@@ -9,6 +9,7 @@ const empty = {
   address: '',
   gstin: '',
   printType: 1,
+  billingType: 1,
   printerName: '',
   bankDetails: '',
   barcodePrinter: '',
@@ -20,7 +21,10 @@ const CompanyDetailsPage: React.FC = () => {
 
   useEffect(() => {
     adminApi.company()
-      .then((res) => setForm({ ...empty, ...adminData<typeof empty>(res) }))
+      .then((res) => {
+        const data = adminData<typeof empty>(res) || empty;
+        setForm({ ...empty, ...data, billingType: data.billingType === 2 ? 2 : 1 });
+      })
       .catch((err) => toast.error(adminError(err, 'Could not load company details')));
   }, []);
 
@@ -48,6 +52,7 @@ const CompanyDetailsPage: React.FC = () => {
         printerName: form.printType === 1 ? form.printerName.trim() : '',
         bankDetails: form.bankDetails.trim(),
         barcodePrinter: form.barcodePrinter.trim(),
+        billingType: form.billingType === 2 ? 2 : 1,
       });
       toast.success('Company details saved');
     } catch (err) {
@@ -79,6 +84,14 @@ const CompanyDetailsPage: React.FC = () => {
           <div className="mst-fg">
             <label>Bank Details</label>
             <textarea className="mst-area" value={form.bankDetails} onChange={(e) => setForm({ ...form, bankDetails: e.target.value })} placeholder="Account Name, Account No, IFSC, Bank, Branch" />
+          </div>
+          <div className="mst-fg">
+            <label>Billing Type <span className="req">*</span></label>
+            <select className="mst-sel" value={form.billingType} onChange={(e) => setForm({ ...form, billingType: Number(e.target.value) })}>
+              <option value={1}>Type</option>
+              <option value={2}>Select</option>
+            </select>
+            <div className="mst-note">Type uses barcode/search. Select shows categories and products like a cafe menu.</div>
           </div>
           <div className="mst-fg">
             <label>Print Format <span className="req">*</span></label>

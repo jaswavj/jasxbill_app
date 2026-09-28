@@ -21,7 +21,10 @@ type Product = {
   convertionUnit: string;
   commission: number;
   stock: number;
+  categoryId?: number;
 };
+
+type MenuCategory = { id: number; name: string };
 
 type Line = {
   key: number;
@@ -52,6 +55,19 @@ type Customer = {
 const api = new BillingApiService();
 const ordersApi = new OrderListApiService();
 const money = (n: number) => (Number.isFinite(n) ? n.toFixed(3) : '0.000');
+const rupee = (n: number) => `₹${(Number.isFinite(n) ? n : 0).toFixed(2)}`;
+
+const CafeItemIcon: React.FC = () => (
+  <svg className="cafe-item-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <rect x="3.6" y="2.2" width="2.2" height="8.2" rx="1.1" />
+    <rect x="6.9" y="2.2" width="2.2" height="8.2" rx="1.1" />
+    <rect x="10.2" y="2.2" width="2.2" height="8.2" rx="1.1" />
+    <path d="M3.6 9.4h8.8v1.5c0 2.5-2 4.4-4.4 4.4s-4.4-1.9-4.4-4.4V9.4z" />
+    <rect x="6.9" y="14.8" width="2.2" height="7" rx="1.1" />
+    <path d="M16.2 2.3c4.1 3.4 5.7 7.6 5.7 11.4 0 1.5-.8 2.4-2 2.4h-1.7V2.3z" />
+    <rect x="16.2" y="16.1" width="2.4" height="5.7" rx="1.2" />
+  </svg>
+);
 
 const BillingPage: React.FC = () => {
   const login = useSelector((s: RootState) => s.loginData);
@@ -59,6 +75,11 @@ const BillingPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [discPer, setDiscPer] = useState(login.discPer || 100);
   const [canBillWithoutStock, setCanBillWithoutStock] = useState(false);
+  const [billingType, setBillingType] = useState(1);
+  const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [menuProducts, setMenuProducts] = useState<Product[]>([]);
+  const [menuCategory, setMenuCategory] = useState(0);
+  const [menuQuery, setMenuQuery] = useState('');
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -82,7 +103,6 @@ const BillingPage: React.FC = () => {
   const autoPay = useRef(true);
 
   const [lines, setLines] = useState<Line[]>([]);
-  const [lineKey, setLineKey] = useState(1);
   const [extraDisc, setExtraDisc] = useState('0');
   const [mode, setMode] = useState('1');
   const [payType, setPayType] = useState('1');
@@ -118,9 +138,20 @@ const BillingPage: React.FC = () => {
       if (res?.success && res.data) {
         setDiscPer(res.data.discPer ?? 100);
         setCanBillWithoutStock(!!res.data.canBillWithoutStock);
+        setBillingType(res.data.billingType === 2 ? 2 : 1);
       }
     }).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (billingType !== 2) return;
+    api.menu().then((res: any) => {
+      if (res?.success && res.data) {
+        setCategories(res.data.categories || []);
+        setMenuProducts(res.data.products || []);
+      }
+    }).catch(() => undefined);
+  }, [billingType]);
 
   useEffect(() => {
     const billNo = (searchParams.get('edit') || '').trim();
@@ -321,6 +352,45 @@ const BillingPage: React.FC = () => {
   const addedQty = (productId: number) =>
     lines.filter((l) => l.productId === productId).reduce((s, l) => s + l.qty, 0);
 
+  const visibleProducts = useMemo(() => {
+    const q = menuQuery.trim().toLowerCase();
+    return menuProducts.filter((p) => {
+      if (menuCategory !== 0 && Number(p.categoryId) !== menuCategory) return false;
+      if (!q) return true;
+      return (p.name || '').toLowerCase().includes(q) || String(p.code || '').toLowerCase().includes(q);
+    });
+  }, [menuProducts, menuCategory, menuQuery]);
+
+  const buildLine = (p: Product, qtyInput: number, unitPrice: number, unitChoice: string, key: number): Line => {
+    const unitName = (p.unitName || '').toLowerCase();
+    let actualQty = qtyInput;
+    let displayUnit = p.convertionUnit || p.unitName;
+    if ((unitName === 'kg' || unitName === 'kgs') && unitChoice === 'gram') {
+      actualQty = qtyInput / 1000;
+      displayUnit = 'Gram';
+    } else if (unitName === 'kg' || unitName === 'kgs') {
+      displayUnit = 'KG';
+    }
+    const commission = isCommission ? p.commission * actualQty : 0;
+    return {
+      key,
+      productId: p.id,
+      code: p.code,
+      name: p.name,
+      qty: actualQty,
+      displayQty: qtyInput,
+      displayUnit,
+      price: unitPrice,
+      discType: 1,
+      discInput: 0,
+      discount: 0,
+      commissionPer: p.commission,
+      commission,
+      total: actualQty * unitPrice - commission,
+      batchId: p.batchId,
+    };
+  };
+
   const addProduct = () => {
     if (!pending) {
       toast.error('Select a product first');
@@ -334,12 +404,8 @@ const BillingPage: React.FC = () => {
     }
     const unitName = (pending.unitName || '').toLowerCase();
     let actualQty = qtyInput;
-    let displayUnit = pending.convertionUnit || pending.unitName;
     if ((unitName === 'kg' || unitName === 'kgs') && unitSel === 'gram') {
       actualQty = qtyInput / 1000;
-      displayUnit = 'Gram';
-    } else if (unitName === 'kg' || unitName === 'kgs') {
-      displayUnit = 'KG';
     }
     const already = addedQty(pending.id);
     const available = (stock ?? 0) - already;
@@ -347,29 +413,7 @@ const BillingPage: React.FC = () => {
       toast.warn(`Stock limit. Available to add: ${available}`);
       return;
     }
-    const commission = isCommission ? pending.commission * actualQty : 0;
-    const total = actualQty * unitPrice - commission;
-    setLines((prev) => [
-      ...prev,
-      {
-        key: lineKey,
-        productId: pending.id,
-        code: pending.code,
-        name: pending.name,
-        qty: actualQty,
-        displayQty: qtyInput,
-        displayUnit,
-        price: unitPrice,
-        discType: 1,
-        discInput: 0,
-        discount: 0,
-        commissionPer: pending.commission,
-        commission,
-        total,
-        batchId: pending.batchId,
-      },
-    ]);
-    setLineKey((k) => k + 1);
+    setLines((prev) => [...prev, buildLine(pending, qtyInput, unitPrice, unitSel, prev.reduce((m, l) => Math.max(m, l.key), 0) + 1)]);
     setPending(null);
     setSearch('');
     setQty('1');
@@ -378,6 +422,46 @@ const BillingPage: React.FC = () => {
     setStock(null);
     setNameHits([]);
     searchRef.current?.focus();
+  };
+
+  const addMenuProduct = (p: Product) => {
+    const unitPrice = Number(p.mrp ?? 0);
+    if (!Number.isFinite(unitPrice)) {
+      toast.error('Enter quantity and price');
+      return;
+    }
+    const already = addedQty(p.id);
+    const available = (p.stock ?? 0) - already;
+    if (!canBillWithoutStock && 1 > available) {
+      toast.warn(`Stock limit. Available to add: ${available}`);
+      return;
+    }
+    const existing = lines.find((l) => l.productId === p.id);
+    if (existing) {
+      updateLineQtyPrice(existing.key, existing.qty + 1, existing.price);
+      return;
+    }
+    setLines((prev) => [...prev, buildLine(p, 1, unitPrice, '', prev.reduce((m, l) => Math.max(m, l.key), 0) + 1)]);
+  };
+
+  const lineAmount = (line: Line) => (isCommission ? line.total : line.qty * line.price - line.discount);
+
+  const changeMenuQty = (line: Line, delta: number) => {
+    const next = line.qty + delta;
+    if (next <= 0) {
+      removeLine(line.key);
+      return;
+    }
+    if (delta > 0) {
+      const product = menuProducts.find((p) => p.id === line.productId);
+      const already = addedQty(line.productId);
+      const available = (product?.stock ?? 0) - already;
+      if (!canBillWithoutStock && 1 > available) {
+        toast.warn(`Stock limit. Available to add: ${available}`);
+        return;
+      }
+    }
+    updateLineQtyPrice(line.key, next, line.price);
   };
 
   const updateLineDisc = (key: number, discType: 1 | 2, discInput: number) => {
@@ -770,141 +854,253 @@ const BillingPage: React.FC = () => {
   }, [a4Bill]);
 
   return (
-    <div className="pos-wrap">
-      <div className="pos-top">
-        <div className="pos-row">
-          <div className="pos-fg" style={{ flex: 2.8, minWidth: 160 }}>
-            <span className="pos-lbl">Code / Item Name</span>
-            <input
-              ref={searchRef}
-              className="pos-inp pos-inp-lg"
-              value={search}
-              placeholder="Scan barcode or search item"
-              autoFocus
-              onChange={(e) => onSearchChange(e.target.value)}
-              onKeyDown={onSearchKey}
-            />
-            {stock !== null && (
-              <span className="pos-stock" style={{
-                background: stock <= 0 ? '#fee2e2' : stock <= 5 ? '#fef3c7' : '#dcfce7',
-                color: stock <= 0 ? '#dc2626' : stock <= 5 ? '#b45309' : '#16a34a',
-              }}>
-                {stock <= 0 ? 'Stock: OUT OF STOCK' : `Stock: ${stock}`}
-              </span>
-            )}
-            {nameHits.length > 0 && (
-              <div className="pos-suggest">
-                {nameHits.map((name) => (
-                  <button key={name} type="button" onClick={() => lookupByName(name)}>{name}</button>
-                ))}
+    <div className={`pos-wrap${billingType === 2 ? ' pos-wrap-select' : ''}`}>
+      {editBillNo && (
+        <div className="pos-banner pos-banner-edit" style={{ margin: billingType === 2 ? '8px 12px 0' : '6px 10px 0' }}>
+          Editing Sales Invoice #{editBillNo}
+          <button className="pos-btn pos-btn-outline" type="button" onClick={() => navigate(routerPathNames.admin.monthlyBills)}>Back to bills</button>
+        </div>
+      )}
+
+      {billingType === 2 ? (
+        <div className="cafe">
+          <div className="cafe-menu">
+            <div className="cafe-cats">
+              <button type="button" className={`cafe-cat${menuCategory === 0 ? ' on' : ''}`} onClick={() => setMenuCategory(0)}>
+                <i className="fas fa-th-large" /> All
+              </button>
+              {categories.map((cat) => (
+                <button key={cat.id} type="button" className={`cafe-cat${menuCategory === cat.id ? ' on' : ''}`} onClick={() => setMenuCategory(cat.id)}>{cat.name}</button>
+              ))}
+            </div>
+            <div className="cafe-search">
+              <i className="fas fa-search" />
+              <input
+                value={menuQuery}
+                placeholder="Search menu items..."
+                onChange={(e) => setMenuQuery(e.target.value)}
+              />
+            </div>
+            <div className="cafe-grid">
+              {visibleProducts.length === 0 && (
+                <div className="cafe-empty">No products in this category</div>
+              )}
+              {visibleProducts.map((p) => {
+                const qtyInCart = addedQty(p.id);
+                const selected = qtyInCart > 0;
+                const oos = (p.stock ?? 0) <= 0;
+                return (
+                  <div
+                    key={p.id}
+                    role="button"
+                    tabIndex={0}
+                    className={`cafe-card${selected ? ' in' : ''}`}
+                    style={{ backgroundColor: '#fff' }}
+                    onClick={() => addMenuProduct(p)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        addMenuProduct(p);
+                      }
+                    }}
+                  >
+                    {selected && <span className="cafe-qty-badge">{qtyInCart % 1 === 0 ? qtyInCart : qtyInCart.toFixed(2)}</span>}
+                    <span className="cafe-card-icon"><CafeItemIcon /></span>
+                    <span className="cafe-card-name">{p.name}</span>
+                    <span className="cafe-card-price">{rupee(p.mrp)}</span>
+                    {oos && <span className="cafe-card-oos">Out of stock</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <aside className="cafe-order">
+            <div className="cafe-order-head">
+              <h3>Order</h3>
+              <span className="cafe-order-count">{lines.length} {lines.length === 1 ? 'item' : 'items'}</span>
+            </div>
+            <div className="cafe-order-list">
+              {lines.length === 0 && (
+                <div className="cafe-order-empty">Tap a product to add it</div>
+              )}
+              {lines.map((line) => (
+                <div key={line.key} className="cafe-line">
+                  <div className="cafe-line-info">
+                    <div className="cafe-line-name">{line.name}</div>
+                    <div className="cafe-line-each">{rupee(line.price)} each</div>
+                  </div>
+                  <div className="cafe-stepper">
+                    <button type="button" className="cafe-step cafe-step-minus" onClick={() => changeMenuQty(line, -1)}>-</button>
+                    <span>{line.displayQty % 1 === 0 ? line.displayQty : line.displayQty.toFixed(2)}</span>
+                    <button type="button" className="cafe-step cafe-step-plus" onClick={() => changeMenuQty(line, 1)}>+</button>
+                  </div>
+                  <div className="cafe-line-total">{rupee(lineAmount(line))}</div>
+                  <button type="button" className="cafe-line-x" onClick={() => removeLine(line.key)} aria-label="Remove">×</button>
+                </div>
+              ))}
+            </div>
+            <div className="cafe-order-foot">
+              <div className="cafe-order-total">
+                <span>Total</span>
+                <strong>{rupee(payable)}</strong>
               </div>
-            )}
-          </div>
-          <div className="pos-fg" style={{ flex: 0.75, minWidth: 78 }}>
-            <span className="pos-lbl">Unit</span>
-            <select className="pos-sel" value={unitSel} disabled={!kgProduct} onChange={(e) => setUnitSel(e.target.value)}>
-              <option value="">{pending?.unitName || 'Unit'}</option>
-              {kgProduct && <option value="kg">KG</option>}
-              {kgProduct && <option value="gram">Gram</option>}
-            </select>
-          </div>
-          <div className="pos-fg" style={{ flex: 0.65, minWidth: 68 }}>
-            <span className="pos-lbl">Qty</span>
-            <input ref={qtyRef} className="pos-inp" value={qty} onChange={(e) => setQty(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addProduct()} />
-          </div>
-          <div className="pos-fg" style={{ flex: 0.9, minWidth: 88 }}>
-            <span className="pos-lbl">Price</span>
-            <input className="pos-inp" value={price} onChange={(e) => setPrice(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addProduct()} />
-          </div>
-          <button className="pos-btn" type="button" onClick={addProduct}>ADD</button>
-          {!editBillId && (
-            <button className="pos-btn pos-btn-outline" type="button" onClick={openHolds}>HOLD LIST</button>
-          )}
+              <div className="cafe-order-tools">
+                {!editBillId && (
+                  <button className="pos-btn pos-btn-outline" type="button" onClick={openHolds}>HOLD LIST</button>
+                )}
+                <button className="pos-btn pos-btn-outline" type="button" onClick={() => setKeysOpen(true)}>KEYS</button>
+                <button className="pos-btn pos-btn-outline" type="button" onClick={openDupe}>DUP</button>
+                <button className="pos-btn pos-btn-outline" type="button" onClick={newBill}>REFRESH</button>
+              </div>
+              {(savedNo || editBillNo || holdNo) && (
+                <div className="pos-billno" style={{ margin: '4px 0 8px' }}>
+                  {savedNo || editBillNo ? `Bill No - ${savedNo || editBillNo}` : ''}{holdNo ? ` Hold - ${holdNo}` : ''}
+                </div>
+              )}
+              <button
+                className={`cafe-place${savedNo && !editBillId ? ' saved' : ''}`}
+                type="button"
+                onClick={openSave}
+              >
+                <i className="fas fa-check-circle" />
+                {savedNo && !editBillId ? 'Bill Saved' : editBillId ? 'Update Bill' : 'Place Order'}
+              </button>
+            </div>
+          </aside>
         </div>
-        {editBillNo && (
-          <div className="pos-banner pos-banner-edit">
-            Editing Sales Invoice #{editBillNo}
-            <button className="pos-btn pos-btn-outline" type="button" onClick={() => navigate(routerPathNames.admin.monthlyBills)}>Back to bills</button>
-          </div>
-        )}
-      </div>
-
-      <div className="pos-table-wrap">
-        <table className="pos-table">
-          <thead>
-            <tr>
-              <th>#</th><th>Code</th><th>Item Name</th><th>Qty</th><th>Price</th>
-              <th>Discount</th><th>Commission</th><th>Total</th><th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((line, idx) => (
-              <tr key={line.key} onClick={() => showHistory(line)} style={{ cursor: 'pointer' }}>
-                <td>{idx + 1}</td>
-                <td>{line.code}</td>
-                <td>{line.name}</td>
-                <td onClick={(e) => e.stopPropagation()}>
-                  <div className="pos-disc-cell">
-                    <input
-                      className="pos-inp"
-                      value={line.displayQty}
-                      onChange={(e) => updateLineQtyPrice(line.key, parseFloat(e.target.value) || 0, line.price)}
-                    />
-                    <span className="pos-unit-tag">{line.displayUnit}</span>
+      ) : (
+        <>
+          <div className="pos-top">
+            <div className="pos-row">
+              <div className="pos-fg" style={{ flex: 2.8, minWidth: 160 }}>
+                <span className="pos-lbl">Code / Item Name</span>
+                <input
+                  ref={searchRef}
+                  className="pos-inp pos-inp-lg"
+                  value={search}
+                  placeholder="Scan barcode or search item"
+                  autoFocus
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  onKeyDown={onSearchKey}
+                />
+                {stock !== null && (
+                  <span className="pos-stock" style={{
+                    background: stock <= 0 ? '#fee2e2' : stock <= 5 ? '#fef3c7' : '#dcfce7',
+                    color: stock <= 0 ? '#dc2626' : stock <= 5 ? '#b45309' : '#16a34a',
+                  }}>
+                    {stock <= 0 ? 'Stock: OUT OF STOCK' : `Stock: ${stock}`}
+                  </span>
+                )}
+                {nameHits.length > 0 && (
+                  <div className="pos-suggest">
+                    {nameHits.map((name) => (
+                      <button key={name} type="button" onClick={() => lookupByName(name)}>{name}</button>
+                    ))}
                   </div>
-                </td>
-                <td onClick={(e) => e.stopPropagation()}>
-                  <input
-                    className="pos-inp"
-                    value={line.price}
-                    onChange={(e) => updateLineQtyPrice(line.key, line.qty, parseFloat(e.target.value) || 0)}
-                  />
-                </td>
-                <td onClick={(e) => e.stopPropagation()}>
-                  <div className="pos-disc-cell">
-                    <select value={line.discType} onChange={(e) => updateLineDisc(line.key, Number(e.target.value) as 1 | 2, line.discInput)}>
-                      <option value={1}>₹</option>
-                      <option value={2}>%</option>
-                    </select>
-                    <input
-                      className="pos-inp"
-                      value={line.discInput}
-                      onChange={(e) => updateLineDisc(line.key, line.discType, parseFloat(e.target.value) || 0)}
-                    />
-                  </div>
-                </td>
-                <td>₹{money(isCommission ? line.commission : 0)}</td>
-                <td>₹{money(isCommission ? line.total : line.qty * line.price - line.discount)}</td>
-                <td onClick={(e) => e.stopPropagation()}>
-                  <button className="pos-btn pos-btn-outline" type="button" onClick={() => removeLine(line.key)}>Delete</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                )}
+              </div>
+              <div className="pos-fg" style={{ flex: 0.75, minWidth: 78 }}>
+                <span className="pos-lbl">Unit</span>
+                <select className="pos-sel" value={unitSel} disabled={!kgProduct} onChange={(e) => setUnitSel(e.target.value)}>
+                  <option value="">{pending?.unitName || 'Unit'}</option>
+                  {kgProduct && <option value="kg">KG</option>}
+                  {kgProduct && <option value="gram">Gram</option>}
+                </select>
+              </div>
+              <div className="pos-fg" style={{ flex: 0.65, minWidth: 68 }}>
+                <span className="pos-lbl">Qty</span>
+                <input ref={qtyRef} className="pos-inp" value={qty} onChange={(e) => setQty(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addProduct()} />
+              </div>
+              <div className="pos-fg" style={{ flex: 0.9, minWidth: 88 }}>
+                <span className="pos-lbl">Price</span>
+                <input className="pos-inp" value={price} onChange={(e) => setPrice(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addProduct()} />
+              </div>
+              <button className="pos-btn" type="button" onClick={addProduct}>ADD</button>
+              {!editBillId && (
+                <button className="pos-btn pos-btn-outline" type="button" onClick={openHolds}>HOLD LIST</button>
+              )}
+            </div>
+          </div>
 
-      <div className="pos-bottom">
-        <div className="pos-footer">
-          <div className="pos-total-box">
-            <span>Total</span>
-            <strong>₹{money(payable)}</strong>
+          <div className="pos-table-wrap">
+            <table className="pos-table">
+              <thead>
+                <tr>
+                  <th>#</th><th>Code</th><th>Item Name</th><th>Qty</th><th>Price</th>
+                  <th>Discount</th><th>Commission</th><th>Total</th><th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((line, idx) => (
+                  <tr key={line.key} onClick={() => showHistory(line)} style={{ cursor: 'pointer' }}>
+                    <td>{idx + 1}</td>
+                    <td>{line.code}</td>
+                    <td>{line.name}</td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <div className="pos-disc-cell">
+                        <input
+                          className="pos-inp"
+                          value={line.displayQty}
+                          onChange={(e) => updateLineQtyPrice(line.key, parseFloat(e.target.value) || 0, line.price)}
+                        />
+                        <span className="pos-unit-tag">{line.displayUnit}</span>
+                      </div>
+                    </td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <input
+                        className="pos-inp"
+                        value={line.price}
+                        onChange={(e) => updateLineQtyPrice(line.key, line.qty, parseFloat(e.target.value) || 0)}
+                      />
+                    </td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <div className="pos-disc-cell">
+                        <select value={line.discType} onChange={(e) => updateLineDisc(line.key, Number(e.target.value) as 1 | 2, line.discInput)}>
+                          <option value={1}>₹</option>
+                          <option value={2}>%</option>
+                        </select>
+                        <input
+                          className="pos-inp"
+                          value={line.discInput}
+                          onChange={(e) => updateLineDisc(line.key, line.discType, parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                    </td>
+                    <td>₹{money(isCommission ? line.commission : 0)}</td>
+                    <td>₹{money(isCommission ? line.total : line.qty * line.price - line.discount)}</td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <button className="pos-btn pos-btn-outline" type="button" onClick={() => removeLine(line.key)}>Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div className="pos-acts">
-            <button className="pos-btn pos-btn-outline" type="button" onClick={() => setKeysOpen(true)}>
-              <i className="fas fa-keyboard" /> KEYS
-            </button>
-            <button className="pos-btn pos-btn-outline" type="button" onClick={openDupe}>DUP</button>
-            <button className="pos-btn pos-btn-outline" type="button" title="Alt+R" onClick={newBill}>REFRESH</button>
-            <button className={`pos-btn ${savedNo && !editBillId ? 'pos-btn-saved' : 'pos-btn-navy'}`} type="button" title="Alt+S" onClick={openSave}>
-              {savedNo && !editBillId ? 'BILL SAVED' : editBillId ? 'UPDATE' : 'SAVE'}
-            </button>
-            {(savedNo || editBillNo) && <div className="pos-billno">Bill No - {savedNo || editBillNo}</div>}
-            {holdNo && <div className="pos-billno">Hold - {holdNo}</div>}
-            {orderId > 0 && <div className="pos-billno">Order loaded</div>}
+
+          <div className="pos-bottom">
+            <div className="pos-footer">
+              <div className="pos-total-box">
+                <span>Total</span>
+                <strong>₹{money(payable)}</strong>
+              </div>
+              <div className="pos-acts">
+                <button className="pos-btn pos-btn-outline" type="button" onClick={() => setKeysOpen(true)}>
+                  <i className="fas fa-keyboard" /> KEYS
+                </button>
+                <button className="pos-btn pos-btn-outline" type="button" onClick={openDupe}>DUP</button>
+                <button className="pos-btn pos-btn-outline" type="button" title="Alt+R" onClick={newBill}>REFRESH</button>
+                <button className={`pos-btn ${savedNo && !editBillId ? 'pos-btn-saved' : 'pos-btn-navy'}`} type="button" title="Alt+S" onClick={openSave}>
+                  {savedNo && !editBillId ? 'BILL SAVED' : editBillId ? 'UPDATE' : 'SAVE'}
+                </button>
+                {(savedNo || editBillNo) && <div className="pos-billno">Bill No - {savedNo || editBillNo}</div>}
+                {holdNo && <div className="pos-billno">Hold - {holdNo}</div>}
+                {orderId > 0 && <div className="pos-billno">Order loaded</div>}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
 
       {keysOpen && (
         <div className="pos-modal-back" onClick={() => setKeysOpen(false)}>

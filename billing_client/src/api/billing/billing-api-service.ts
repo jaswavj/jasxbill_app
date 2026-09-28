@@ -4,6 +4,7 @@ export class BillingApiService {
   private http = new HttpClientWrapper();
 
   options = () => this.http.get('/v1/billing/options');
+  menu = () => this.http.get('/v1/billing/menu');
   searchProducts = (term: string) => this.http.get(`/v1/billing/products?term=${encodeURIComponent(term)}`);
   productByCode = (code: string) => this.http.get(`/v1/billing/products/by-code?code=${encodeURIComponent(code)}`);
   productByName = (name: string) => this.http.get(`/v1/billing/products/by-name?name=${encodeURIComponent(name)}`);

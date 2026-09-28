@@ -2,6 +2,8 @@ package com.billing.pos;
 
 import com.billing.admin.AdminService;
 import com.billing.admin.dto.CompanyDetailsData;
+import com.billing.master.dto.NamedItemData;
+import com.billing.pos.dto.BillingMenuData;
 import com.billing.pos.dto.BillingOptionsData;
 import com.billing.pos.dto.CustomerData;
 import com.billing.pos.dto.EditBillLoadData;
@@ -50,6 +52,40 @@ public class BillingReadService {
         BillingOptionsData data = new BillingOptionsData();
         data.setDiscPer(discPer == null ? 100 : discPer);
         data.setCanBillWithoutStock(permCount != null && permCount > 0);
+        Integer billingType = adminService.company().getBillingType();
+        data.setBillingType(billingType != null && billingType == 2 ? 2 : 1);
+        return data;
+    }
+
+    public BillingMenuData menu() {
+        BillingMenuData data = new BillingMenuData();
+        data.setCategories(jdbcTemplate.query(
+                "SELECT id, NAME AS name FROM prod_category WHERE is_active = 1 ORDER BY NAME",
+                (rs, i) -> {
+                    NamedItemData row = new NamedItemData();
+                    row.setId(rs.getLong("id"));
+                    row.setName(rs.getString("name"));
+                    return row;
+                }
+        ));
+        data.setProducts(jdbcTemplate.query(
+                "SELECT a.id, a.code, a.name, a.category_id, b.mrp AS selected_mrp, " +
+                        "ROUND(CASE WHEN b.disc_type = 1 THEN b.discount " +
+                        "WHEN b.disc_type = 2 THEN (b.mrp * b.discount) / 100 ELSE 0 END, 2) AS discount_amount, " +
+                        "b.id AS batch_id, a.unit_id, IFNULL(u.name,'') AS unit_name, IFNULL(b.commission,0) AS commission, " +
+                        "IFNULL(u.convertion_unit,'') AS convertion_unit, IFNULL(s.total_stock, 0) AS total_stock " +
+                        "FROM prod_product a " +
+                        "JOIN prod_batch b ON b.product_id = a.id AND b.id = (SELECT MIN(id) FROM prod_batch WHERE product_id = a.id) " +
+                        "LEFT JOIN prod_units u ON u.id = a.unit_id " +
+                        "LEFT JOIN (SELECT product_id, SUM(stock) AS total_stock FROM prod_batch GROUP BY product_id) s ON s.product_id = a.id " +
+                        "WHERE a.is_active = 1 ORDER BY a.name",
+                (rs, i) -> {
+                    ProductLookupData row = mapProduct(rs, i);
+                    row.setCategoryId(rs.getLong("category_id"));
+                    row.setStock(rs.getDouble("total_stock"));
+                    return row;
+                }
+        ));
         return data;
     }
 
