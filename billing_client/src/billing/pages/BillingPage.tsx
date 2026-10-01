@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { adminApi } from '../../api/admin/admin-api-service';
 import { BillingApiService } from '../../api/billing/billing-api-service';
+import { handleThermalDispatch } from '../../api/billing/local-print-agent';
 import { OrderListApiService } from '../../api/orders/order-list-api-service';
 import { routerPathNames } from '../../routes/routerPathNames';
 import { RootState } from '../../state/store';
@@ -756,19 +757,9 @@ const BillingPage: React.FC = () => {
     }
     try {
       const res: any = await api.dispatchPrint(billNo);
-      const data = res?.data || {};
-      if (!res?.success) {
-        toast.error(data.error || 'Thermal print failed. Check printer name in Company Details.');
-        return;
-      }
-      if (data.type === 'a4') {
-        await printA4SameTab(data.billNo || billNo);
-      } else if (data.type === 'printed') {
-        toast.success(data.message || 'Receipt printed and cut');
-      } else if (data.type === 'txt') {
-        toast.warn(data.message || 'Thermal printer not found. Receipt saved as TXT. No Windows print used.');
-      } else {
-        toast.error('Thermal print did not run. Check printer name in Company Details.');
+      const result = await handleThermalDispatch(res, (no) => printA4SameTab(no || billNo));
+      if (result === 'printed' || result === 'local') {
+        toast.success('Receipt printed and cut');
       }
     } catch (e: any) {
       toast.error(e?.response?.data?.data?.error || e?.message || 'Thermal print failed');

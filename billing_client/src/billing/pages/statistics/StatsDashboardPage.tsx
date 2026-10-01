@@ -17,6 +17,7 @@ import {
   YAxis,
 } from 'recharts';
 import { billingApi } from '../../../api/billing/billing-api-service';
+import { handleThermalDispatch } from '../../../api/billing/local-print-agent';
 import { statsApi, statsData, statsError } from '../../../api/statistics/statistics-api-service';
 import { routerPathNames } from '../../../routes/routerPathNames';
 import { useBillDetail } from '../account-reports/BillDetailModal';
@@ -173,17 +174,14 @@ const StatsDashboardPage: React.FC = () => {
   const printBill = async (billNo: string) => {
     try {
       const res: any = await billingApi.dispatchPrint(billNo);
-      const print = res?.data || {};
-      if (!res?.success) {
-        toast.error(print.error || 'Print failed');
-        return;
+      const result = await handleThermalDispatch(res, (no) => {
+        navigate(`/app/billing/print/${encodeURIComponent(no || billNo)}`);
+      });
+      if (result === 'printed' || result === 'local') {
+        toast.success('Receipt printed');
       }
-      if (print.type === 'printed') toast.success(print.message || 'Receipt printed');
-      else if (print.type === 'txt') toast.warn(print.message || 'Saved as TXT');
-      else if (print.type === 'a4') navigate(`/app/billing/print/${encodeURIComponent(billNo)}`);
-      else toast.error('Print did not run. Check printer in Company Details.');
     } catch (err: any) {
-      toast.error(err?.response?.data?.data?.error || 'Print failed');
+      toast.error(err?.response?.data?.data?.error || err?.message || 'Print failed');
     }
   };
 

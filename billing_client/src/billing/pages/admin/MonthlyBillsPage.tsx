@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { billingApi } from '../../../api/billing/billing-api-service';
+import { handleThermalDispatch } from '../../../api/billing/local-print-agent';
 import { routerPathNames } from '../../../routes/routerPathNames';
 import { useBillDetail } from '../account-reports/BillDetailModal';
 import '../master/Master.css';
@@ -77,17 +78,14 @@ const MonthlyBillsPage: React.FC = () => {
   const printBill = async (billNo: string) => {
     try {
       const res: any = await billingApi.dispatchPrint(billNo);
-      const data = res?.data || {};
-      if (!res?.success) {
-        toast.error(data.error || 'Print failed');
-        return;
+      const result = await handleThermalDispatch(res, (no) => {
+        navigate(`/app/billing/print/${encodeURIComponent(no || billNo)}`);
+      });
+      if (result === 'printed' || result === 'local') {
+        toast.success('Receipt printed');
       }
-      if (data.type === 'printed') toast.success(data.message || 'Receipt printed');
-      else if (data.type === 'txt') toast.warn(data.message || 'Saved as TXT');
-      else if (data.type === 'a4') navigate(`/app/billing/print/${encodeURIComponent(billNo)}`);
-      else toast.error('Print did not run. Check printer in Company Details.');
     } catch (err: any) {
-      toast.error(err?.response?.data?.data?.error || 'Print failed');
+      toast.error(err?.response?.data?.data?.error || err?.message || 'Print failed');
     }
   };
 

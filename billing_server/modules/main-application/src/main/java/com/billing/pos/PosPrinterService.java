@@ -7,28 +7,23 @@ import com.billing.pos.dto.PrintDispatchData;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import javax.print.Doc;
-import javax.print.DocFlavor;
-import javax.print.DocPrintJob;
 import javax.print.PrintService;
 import javax.print.PrintServiceLookup;
-import javax.print.SimpleDoc;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileWriter;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * ESC/POS thermal print — same conditions as the old JSP POSPrinter:
- * printer_name and print_type come from company_details.
- * print_type 2 = A4 browser preview; 1 = send raw bytes to the named printer.
- * If the configured printer is missing, save a TXT receipt instead.
+ * ESC/POS thermal print.
+ * print_type 2 = A4 browser preview; 1 = thermal.
+ * If this machine has the named printer, print RAW here.
+ * If it does not (cloud Linux), return base64 bytes for the shop-PC print agent.
  */
 @Service
 @RequiredArgsConstructor
@@ -66,71 +61,62 @@ public class PosPrinterService {
 
     public PrintDispatchData printReceipt(String billNo) {
         PrintBillData bill = readService.printBill(billNo);
-        int width = receiptWidth(bill.getPrinterName());
-        PrintService service = findPrintService(bill.getPrinterName());
-        if (service != null) {
-            try {
-                byte[] receipt = buildReceipt(bill, width);
-                if (!sendRaw(service.getName(), receipt)) {
-                    throw new RuntimeException("Could not send raw data to " + service.getName());
-                }
-                PrintDispatchData data = new PrintDispatchData();
-                data.setType("printed");
-                data.setBillNo(billNo);
-                data.setMessage("Printed to: " + service.getName());
-                return data;
-            } catch (Exception ex) {
-                throw new RuntimeException("Print error: " + (ex.getMessage() == null ? "Unknown error" : ex.getMessage()));
-            }
+        String printerName = firstName(bill.getPrinterName(), adminService.company().getPrinterName());
+        if (printerName.isBlank()) {
+            throw new RuntimeException("Set the thermal printer name in Company Details.");
         }
+        int width = receiptWidth(printerName);
+        byte[] receipt;
         try {
-            String txtPath = writeTxt(bill, width);
-            File file = new File(txtPath);
-            PrintDispatchData data = new PrintDispatchData();
-            data.setType("txt");
-            data.setBillNo(billNo);
-            data.setTxtPath(txtPath.replace('\\', '/'));
-            data.setTxtFile(file.getName());
-            data.setMessage("No printer found. TXT saved to: " + data.getTxtPath());
-            return data;
+            receipt = buildReceipt(bill, width);
         } catch (Exception ex) {
-            throw new RuntimeException("Could not save receipt: " + ex.getMessage());
+            throw new RuntimeException("Could not build receipt: " + (ex.getMessage() == null ? "Unknown error" : ex.getMessage()));
         }
+        PrintService service = findPrintService(printerName);
+        String localName = service != null ? service.getName() : printerName;
+        if (printOnThisMachine(localName, printerName, receipt)) {
+            PrintDispatchData data = new PrintDispatchData();
+            data.setType("printed");
+            data.setBillNo(billNo);
+            data.setPrinterName(localName);
+            data.setMessage("Printed to: " + localName);
+            return data;
+        }
+        PrintDispatchData data = new PrintDispatchData();
+        data.setType("local");
+        data.setBillNo(billNo);
+        data.setPrinterName(printerName);
+        data.setPayload(Base64.getEncoder().encodeToString(receipt));
+        data.setMessage("Send to print agent on this PC");
+        return data;
     }
 
     private int receiptWidth(String printerName) {
         return printerName != null && printerName.contains("58") ? WIDTH_58 : WIDTH_80;
     }
 
-    /**
-     * Send ESC/POS bytes as RAW — not a Windows page job.
-     * GDI/XPS printing is what feeds a blank extra page and skips the cutter.
-     */
-    private boolean sendRaw(String printerName, byte[] data) {
-        String[] paths = {
-                "\\\\localhost\\" + printerName,
-                "\\\\.\\" + printerName
-        };
-        for (String path : paths) {
-            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(path)) {
-                fos.write(data);
-                fos.flush();
-                return true;
-            } catch (Exception ignored) {
-                // try next path
+    private String firstName(String... names) {
+        if (names == null) {
+            return "";
+        }
+        for (String name : names) {
+            if (name != null && !name.isBlank()) {
+                return name.trim();
             }
         }
-        try {
-            Doc doc = new SimpleDoc(data, DocFlavor.BYTE_ARRAY.AUTOSENSE, null);
-            PrintService service = findPrintService(printerName);
-            if (service == null) {
-                return false;
-            }
-            service.createPrintJob().print(doc, null);
-            return true;
-        } catch (Exception ex) {
+        return "";
+    }
+
+    private boolean printOnThisMachine(String resolvedName, String configuredName, byte[] receipt) {
+        if (!WinspoolRawPrinter.isWindows()) {
             return false;
         }
+        if (WinspoolRawPrinter.print(resolvedName, receipt)) {
+            return true;
+        }
+        return configuredName != null
+                && !configuredName.equalsIgnoreCase(resolvedName)
+                && WinspoolRawPrinter.print(configuredName, receipt);
     }
 
     private PrintService findPrintService(String printerName) {
@@ -144,19 +130,6 @@ public class PosPrinterService {
             }
         }
         return null;
-    }
-
-    private String writeTxt(PrintBillData bill, int width) throws Exception {
-        File dir = new File(System.getProperty("user.dir"), "bills");
-        if (!dir.exists()) {
-            dir.mkdirs();
-        }
-        String safe = bill.getBillDisplay().replace("/", "-").replace("\\", "-").replace(" ", "_");
-        File file = new File(dir, "Bill_" + safe + ".txt");
-        try (FileWriter writer = new FileWriter(file, StandardCharsets.UTF_8)) {
-            writer.write(buildPlainText(bill, width));
-        }
-        return file.getAbsolutePath();
     }
 
     private byte[] buildReceipt(PrintBillData bill, int width) throws Exception {
@@ -224,66 +197,6 @@ public class PosPrinterService {
         write(out, CUT_FEED);
         write(out, CUT_PARTIAL);
         return out.toByteArray();
-    }
-
-    private String buildPlainText(PrintBillData bill, int width) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(center(nz(bill.getCompanyName()), width)).append('\n');
-        if (!blank(bill.getCompanyAddress())) {
-            for (String line : bill.getCompanyAddress().split("\\r?\\n")) {
-                if (!blank(line)) {
-                    sb.append(center(line.trim(), width)).append('\n');
-                }
-            }
-        }
-        if (!blank(bill.getCompanyGstin())) {
-            sb.append(center("GSTIN: " + bill.getCompanyGstin(), width)).append('\n');
-        }
-        sb.append(divider(width));
-        String date = nz(bill.getDate());
-        sb.append(padRight("Bill: " + nz(bill.getBillDisplay()), width - date.length())).append(date).append('\n');
-        sb.append("Cust: ").append(nz(bill.getCustomerName())).append('\n');
-        if (hasValue(bill.getCustomerPhone())) {
-            sb.append("Ph: ").append(bill.getCustomerPhone()).append('\n');
-        }
-        if (hasValue(bill.getCustomerGstin())) {
-            sb.append("GSTIN: ").append(bill.getCustomerGstin()).append('\n');
-        }
-        sb.append(divider(width)).append(itemHeader(width)).append(divider(width));
-        Totals totals = appendItems(sb, bill, width);
-        sb.append(divider(width));
-        sb.append(formatTotal("Items:", String.valueOf((int) totals.qty), width));
-        if (totals.discount > 0) {
-            sb.append(formatTotal("Item Disc:", "-Rs " + DF.format(totals.discount), width));
-        }
-        if (totals.extra > 0) {
-            sb.append(formatTotal("Extra Disc:", "-Rs " + DF.format(totals.extra), width));
-        }
-        sb.append(divider(width));
-        sb.append(formatTotal("TOTAL:", "Rs " + DF.format(totals.finalPaid), width));
-        sb.append(divider(width));
-        sb.append(formatTotal("Paid:", "Rs " + DF.format(n(bill.getPaid())), width));
-        if (n(bill.getBalance()) != 0) {
-            String label = bill.getBalance() > 0 ? "Balance:" : "Change:";
-            sb.append(formatTotal(label, "Rs " + DF.format(Math.abs(bill.getBalance())), width));
-        }
-        if (totals.gst > 0) {
-            sb.append(divider(width)).append("GST Summary:\n");
-            List<Integer> rates = new ArrayList<>(totals.taxable.keySet());
-            Collections.sort(rates);
-            for (Integer rate : rates) {
-                if (rate > 0) {
-                    sb.append("GST").append(rate).append("% Txbl:Rs").append(DF.format(totals.taxable.get(rate))).append('\n');
-                    sb.append("CGST:Rs").append(DF.format(totals.cgst.get(rate)))
-                            .append(" SGST:Rs").append(DF.format(totals.sgst.get(rate))).append('\n');
-                }
-            }
-            sb.append(formatTotal("Total GST:", "Rs " + DF.format(totals.gst), width));
-        }
-        sb.append(divider(width));
-        sb.append(center(nz(bill.getAmountInWords()).toUpperCase(), width)).append('\n');
-        sb.append(center("Thank You! Visit Again", width)).append("\n\n");
-        return sb.toString();
     }
 
     private Totals writeItems(ByteArrayOutputStream out, PrintBillData bill, int width) {
@@ -389,19 +302,12 @@ public class PosPrinterService {
         return " ".repeat(width - s.length()) + s;
     }
 
-    private String center(String text, int width) {
-        if (text == null) text = "";
-        if (text.length() >= width) return text.substring(0, width);
-        int left = (width - text.length()) / 2;
-        return " ".repeat(left) + text + " ".repeat(width - text.length() - left);
-    }
-
     private void write(ByteArrayOutputStream out, byte[] data) {
         out.writeBytes(data);
     }
 
     private void write(ByteArrayOutputStream out, String text) {
-        out.writeBytes(text.getBytes(StandardCharsets.UTF_8));
+        out.writeBytes(text.getBytes(StandardCharsets.ISO_8859_1));
     }
 
     private boolean blank(String value) {

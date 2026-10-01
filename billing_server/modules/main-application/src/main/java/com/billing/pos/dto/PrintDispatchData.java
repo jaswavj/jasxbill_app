@@ -7,6 +7,6 @@ public class PrintDispatchData {
     private String type;
     private String billNo;
     private String message;
-    private String txtFile;
-    private String txtPath;
+    private String printerName;
+    private String payload;
 }

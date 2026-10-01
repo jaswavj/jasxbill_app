@@ -1,0 +1,4 @@
+for cloud thermal printer 
+billing_server\print-agent put this folder in client system 
+install java 21
+run billing_server\print-agent\start-print-agent.bat and leave without close
