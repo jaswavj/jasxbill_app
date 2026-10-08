@@ -1351,7 +1351,7 @@ const BillingPage: React.FC = () => {
           </div>
 
           <div className="pos-table-wrap">
-            <table className="pos-table">
+            <table className="pos-table pos-table-lines">
               <thead>
                 <tr>
                   <th>#</th><th>Code</th><th>Item Name</th><th>Qty</th><th>Price</th>
@@ -1365,7 +1365,7 @@ const BillingPage: React.FC = () => {
                     <td>{line.code}</td>
                     <td>{line.name}</td>
                     <td onClick={(e) => e.stopPropagation()}>
-                      <div className="pos-disc-cell">
+                      <div className="pos-qty-cell">
                         <input
                           className="pos-inp"
                           value={line.displayQty}
