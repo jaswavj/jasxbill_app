@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { inventoryApi, invData, invError } from '../../../api/inventory/inventory-api-service';
+import { inventoryApi, invData, invError, invPage } from '../../../api/inventory/inventory-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import '../master/Master.css';
 import '../BillingPage.css';
 import ReportActions from '../account-reports/ReportActions';
@@ -38,16 +39,23 @@ const PurchaseReportPage: React.FC = () => {
   const [to, setTo] = useState(today());
   const [supplierId, setSupplierId] = useState('0');
   const [rows, setRows] = useState<Row[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [details, setDetails] = useState<Detail[] | null>(null);
   const [openRow, setOpenRow] = useState<Row | null>(null);
 
   useEffect(() => {
-    inventoryApi.suppliers().then((res) => setSuppliers(invData<Supplier[]>(res) || [])).catch(() => undefined);
+    inventoryApi.suppliersAll().then((res) => setSuppliers(invData<Supplier[]>(res) || [])).catch(() => undefined);
   }, []);
 
-  const search = async () => {
+  const search = async (p = 0) => {
     try {
-      setRows(invData<Row[]>(await inventoryApi.purchaseReport(from, to, supplierId === '0' ? undefined : Number(supplierId))) || []);
+      const pg = invPage<Row>(await inventoryApi.purchaseReport(
+        from, to, supplierId === '0' ? undefined : Number(supplierId), p, DEFAULT_PAGE_SIZE,
+      ));
+      setRows(pg.items);
+      setTotal(pg.total);
+      setPage(p);
       closeDetails();
     } catch (err) {
       toast.error(invError(err, 'Could not load report'));
@@ -93,7 +101,7 @@ const PurchaseReportPage: React.FC = () => {
             </select>
           </div>
           <div className="mst-actions">
-            <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button>
+            <button className="mst-btn mst-btn-primary" type="button" onClick={() => search(0)}>Generate Report</button>
             <ReportActions
               disabled={rows.length === 0}
               filename={`Purchase_Report_${from}_${to}`}
@@ -132,7 +140,7 @@ const PurchaseReportPage: React.FC = () => {
               {rows.length === 0 && <tr><td colSpan={10} className="mst-empty">No purchase records found for the selected period.</td></tr>}
               {rows.map((row, i) => (
                 <tr key={row.id} onClick={() => openDetails(row)} style={{ cursor: 'pointer' }}>
-                  <td>{i + 1}</td>
+                  <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                   <td>{row.invoiceNo}/{row.prno}</td>
                   <td>{row.invoiceDate}</td>
                   <td>{row.supplierName}</td>
@@ -147,6 +155,7 @@ const PurchaseReportPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={(p) => search(p)} />
       </div>
       {details && openRow && (
         <div className="pos-modal-back" onClick={closeDetails}>

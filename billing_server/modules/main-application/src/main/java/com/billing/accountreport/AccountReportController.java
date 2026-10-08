@@ -1,5 +1,6 @@
 package com.billing.accountreport;
 
+import com.billing.common.JdbcPageHelper;
 import com.billing.core.response.ResponseDO;
 import com.billing.security.PlatformSecurityContext;
 import lombok.RequiredArgsConstructor;
@@ -24,43 +25,58 @@ public class AccountReportController {
                             @RequestParam(required = false, defaultValue = "0") Integer mode,
                             @RequestParam(required = false, defaultValue = "0") Integer type,
                             @RequestParam(required = false, defaultValue = "0") Long userId,
-                            @RequestParam(required = false, defaultValue = "0") Integer taxBill) {
-        return ok(accountReportService.sales(from, to, mode, type, userId, taxBill));
+                            @RequestParam(required = false, defaultValue = "0") Integer taxBill,
+                            @RequestParam(defaultValue = "0") int page,
+                            @RequestParam(defaultValue = "25") int size) {
+        var data = accountReportService.sales(from, to, mode, type, userId, taxBill);
+        data.put("bills", JdbcPageHelper.slice((java.util.List<?>) data.get("bills"), page, size));
+        data.put("dues", JdbcPageHelper.slice((java.util.List<?>) data.get("dues"), page, size));
+        return ok(data);
     }
 
     @GetMapping("/sales-by-category")
     public ResponseDO salesByCategory(@RequestParam String from,
                                       @RequestParam String to,
-                                      @RequestParam Long categoryId) {
-        return ok(accountReportService.lineSales(from, to, "category", categoryId));
+                                      @RequestParam Long categoryId,
+                                      @RequestParam(defaultValue = "0") int page,
+                                      @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(accountReportService.lineSales(from, to, "category", categoryId), page, size));
     }
 
     @GetMapping("/sales-by-department")
     public ResponseDO salesByDepartment(@RequestParam String from,
                                         @RequestParam String to,
-                                        @RequestParam Long brandId) {
-        return ok(accountReportService.lineSales(from, to, "brand", brandId));
+                                        @RequestParam Long brandId,
+                                        @RequestParam(defaultValue = "0") int page,
+                                        @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(accountReportService.lineSales(from, to, "brand", brandId), page, size));
     }
 
     @GetMapping("/sales-by-item")
     public ResponseDO salesByItem(@RequestParam String from,
                                   @RequestParam String to,
-                                  @RequestParam Long productId) {
-        return ok(accountReportService.lineSales(from, to, "product", productId));
+                                  @RequestParam Long productId,
+                                  @RequestParam(defaultValue = "0") int page,
+                                  @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(accountReportService.lineSales(from, to, "product", productId), page, size));
     }
 
     @GetMapping("/sales-by-customer")
     public ResponseDO salesByCustomer(@RequestParam String from,
                                       @RequestParam String to,
-                                      @RequestParam Long customerId) {
-        return ok(accountReportService.salesByCustomer(from, to, customerId));
+                                      @RequestParam Long customerId,
+                                      @RequestParam(defaultValue = "0") int page,
+                                      @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(accountReportService.salesByCustomer(from, to, customerId), page, size));
     }
 
     @GetMapping("/sales-by-attender")
     public ResponseDO salesByAttender(@RequestParam String from,
                                       @RequestParam String to,
-                                      @RequestParam(required = false, defaultValue = "0") Long attenderId) {
-        return ok(accountReportService.salesByAttender(from, to, attenderId));
+                                      @RequestParam(required = false, defaultValue = "0") Long attenderId,
+                                      @RequestParam(defaultValue = "0") int page,
+                                      @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(accountReportService.salesByAttender(from, to, attenderId), page, size));
     }
 
     @GetMapping("/day-account")
@@ -86,8 +102,10 @@ public class AccountReportController {
     @GetMapping("/commission")
     public ResponseDO commission(@RequestParam String from,
                                  @RequestParam String to,
-                                 @RequestParam Long customerId) {
-        return ok(accountReportService.commission(from, to, customerId));
+                                 @RequestParam Long customerId,
+                                 @RequestParam(defaultValue = "0") int page,
+                                 @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(accountReportService.commission(from, to, customerId), page, size));
     }
 
     @GetMapping("/commission-customers")
@@ -96,23 +114,35 @@ public class AccountReportController {
     }
 
     @GetMapping("/gst/sales-summary")
-    public ResponseDO gstSalesSummary(@RequestParam String from, @RequestParam String to) {
-        return ok(accountReportService.gstSalesSummary(from, to));
+    public ResponseDO gstSalesSummary(@RequestParam String from,
+                                      @RequestParam String to,
+                                      @RequestParam(defaultValue = "0") int page,
+                                      @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(accountReportService.gstSalesSummary(from, to), page, size));
     }
 
     @GetMapping("/gst/bill-wise")
-    public ResponseDO gstBillWise(@RequestParam String from, @RequestParam String to) {
-        return ok(accountReportService.gstBillWise(from, to));
+    public ResponseDO gstBillWise(@RequestParam String from,
+                                  @RequestParam String to,
+                                  @RequestParam(defaultValue = "0") int page,
+                                  @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(accountReportService.gstBillWise(from, to), page, size));
     }
 
     @GetMapping("/gst/item-wise")
-    public ResponseDO gstItemWise(@RequestParam String from, @RequestParam String to) {
-        return ok(accountReportService.gstItemWise(from, to));
+    public ResponseDO gstItemWise(@RequestParam String from,
+                                  @RequestParam String to,
+                                  @RequestParam(defaultValue = "0") int page,
+                                  @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(accountReportService.gstItemWise(from, to), page, size));
     }
 
     @GetMapping("/gst/hsn")
-    public ResponseDO gstHsn(@RequestParam String from, @RequestParam String to) {
-        return ok(accountReportService.gstHsn(from, to));
+    public ResponseDO gstHsn(@RequestParam String from,
+                             @RequestParam String to,
+                             @RequestParam(defaultValue = "0") int page,
+                             @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(accountReportService.gstHsn(from, to), page, size));
     }
 
     @GetMapping("/gst/gstr1")
@@ -121,13 +151,19 @@ public class AccountReportController {
     }
 
     @GetMapping("/gst/purchase")
-    public ResponseDO gstPurchase(@RequestParam String from, @RequestParam String to) {
-        return ok(accountReportService.gstPurchase(from, to));
+    public ResponseDO gstPurchase(@RequestParam String from,
+                                  @RequestParam String to,
+                                  @RequestParam(defaultValue = "0") int page,
+                                  @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(accountReportService.gstPurchase(from, to), page, size));
     }
 
     @GetMapping("/gst/purchase-summary")
-    public ResponseDO gstPurchaseSummary(@RequestParam String from, @RequestParam String to) {
-        return ok(accountReportService.gstPurchaseSummary(from, to));
+    public ResponseDO gstPurchaseSummary(@RequestParam String from,
+                                         @RequestParam String to,
+                                         @RequestParam(defaultValue = "0") int page,
+                                         @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(accountReportService.gstPurchaseSummary(from, to), page, size));
     }
 
     private Long currentUserId() {

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { stockApi, stockData, stockError } from '../../../api/stock-reports/stock-report-api-service';
+import { stockApi, stockData, stockError, stockPage } from '../../../api/stock-reports/stock-report-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import '../master/Master.css';
 import '../statistics/Stats.css';
 import ReportActions from '../account-reports/ReportActions';
@@ -20,18 +21,24 @@ const StockAdjustmentReportPage: React.FC = () => {
   const [stockType, setStockType] = useState('0');
   const [products, setProducts] = useState<Prod[]>([]);
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     stockApi.products().then((res) => setProducts(stockData<Prod[]>(res) || [])).catch(() => undefined);
   }, []);
 
-  const search = async () => {
+  const search = async (p = 0) => {
     try {
-      setRows(stockData<Row[]>(await stockApi.adjustments(
+      const pg = stockPage<Row>(await stockApi.adjustments(
         from, to,
         productId === '0' ? undefined : Number(productId),
         stockType === '0' ? undefined : Number(stockType),
-      )) || []);
+        p, DEFAULT_PAGE_SIZE,
+      ));
+      setRows(pg.items);
+      setTotal(pg.total);
+      setPage(p);
     } catch (err) {
       toast.error(stockError(err, 'Could not load report'));
     }
@@ -62,7 +69,7 @@ const StockAdjustmentReportPage: React.FC = () => {
             </select>
           </div>
           <div className="mst-actions">
-            <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button>
+            <button className="mst-btn mst-btn-primary" type="button" onClick={() => search(0)}>Generate Report</button>
             <ReportActions
               disabled={!rows}
               filename={`Stock_Adjustment_${from}_${to}`}
@@ -91,7 +98,7 @@ const StockAdjustmentReportPage: React.FC = () => {
                 {rows.length === 0 && <tr><td colSpan={8} className="mst-empty">No adjustments.</td></tr>}
                 {rows.map((row, i) => (
                   <tr key={row.id}>
-                    <td>{i + 1}</td>
+                    <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                     <td>{row.productName}</td>
                     <td><span className={`st-badge ${badge(row.stockType)}`}>{label(row.stockType)}</span></td>
                     <td className="num">{row.stock} {row.unit}</td>
@@ -104,6 +111,7 @@ const StockAdjustmentReportPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={(p) => search(p)} />
         </div>
       )}
     </div>

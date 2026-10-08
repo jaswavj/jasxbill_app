@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { toast } from 'react-toastify';
-import { adminApi, adminData, adminError } from '../../../api/admin/admin-api-service';
+import { adminApi, adminError, adminPage } from '../../../api/admin/admin-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import '../master/Master.css';
 
 type Row = {
@@ -29,10 +30,15 @@ const EditLogPage: React.FC = () => {
   const [from, setFrom] = useState(today());
   const [to, setTo] = useState(today());
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
 
-  const search = async () => {
+  const search = async (p = 0) => {
     try {
-      setRows(adminData<Row[]>(await adminApi.editLog(from, to)) || []);
+      const pg = adminPage<Row>(await adminApi.editLog(from, to, p, DEFAULT_PAGE_SIZE));
+      setRows(pg.items);
+      setTotal(pg.total);
+      setPage(p);
     } catch (err) {
       toast.error(adminError(err, 'Could not load edit log'));
     }
@@ -46,13 +52,13 @@ const EditLogPage: React.FC = () => {
           <div className="mst-fg"><label>From Date</label><input className="mst-inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
           <div className="mst-fg"><label>To Date</label><input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
           <div className="mst-actions">
-            <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate</button>
+            <button className="mst-btn mst-btn-primary" type="button" onClick={() => search(0)}>Generate</button>
           </div>
         </div>
       </div>
       {rows && (
         <div className="mst-card">
-          <div className="mst-card-h">Edits and cancellations from {from} to {to}</div>
+          <div className="mst-card-h">Edits and cancellations from {from} to {to} ({total})</div>
           <div className="mst-table-wrap">
             <table className="mst-table">
               <thead>
@@ -70,7 +76,7 @@ const EditLogPage: React.FC = () => {
                 {rows.length === 0 && <tr><td colSpan={7} className="mst-empty">No edits or cancellations in this period.</td></tr>}
                 {rows.map((row, i) => (
                   <tr key={row.id || `${row.billNo}-${i}`}>
-                    <td>{i + 1}</td>
+                    <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                     <td>{row.billNo}</td>
                     <td>{actionLabel(row.action)}</td>
                     <td>{row.details}</td>
@@ -82,6 +88,7 @@ const EditLogPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={(p) => search(p)} />
         </div>
       )}
     </div>

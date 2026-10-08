@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { accountApi, accountData, accountError } from '../../../api/account-reports/account-report-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE, normalizePage } from '../../components/ListPagination';
 import '../master/Master.css';
 import { n2, n3, sum, today } from './reportHelpers';
 import { useBillDetail } from './BillDetailModal';
@@ -18,19 +19,26 @@ const CommissionReportPage: React.FC = () => {
   const [customerId, setCustomerId] = useState('');
   const [customers, setCustomers] = useState<Opt[]>([]);
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const { openBill, billModal } = useBillDetail();
 
   useEffect(() => {
     accountApi.commissionCustomers().then((res) => setCustomers(accountData<Opt[]>(res) || [])).catch(() => undefined);
   }, []);
 
-  const search = async () => {
+  const search = async (p = 0) => {
     if (!customerId) {
       toast.error('Please select a customer');
       return;
     }
     try {
-      setRows(accountData<Row[]>(await accountApi.commission(from, to, Number(customerId))) || []);
+      const pg = normalizePage(accountData<Row[] | ReturnType<typeof normalizePage<Row>>>(
+        await accountApi.commission(from, to, Number(customerId), p, DEFAULT_PAGE_SIZE),
+      ));
+      setRows(pg.items);
+      setTotal(pg.total);
+      setPage(p);
     } catch (err) {
       toast.error(accountError(err, 'Could not load commission report'));
     }
@@ -51,7 +59,7 @@ const CommissionReportPage: React.FC = () => {
             </select>
           </div>
           <div className="mst-actions">
-            <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button>
+            <button className="mst-btn mst-btn-primary" type="button" onClick={() => search(0)}>Generate Report</button>
             <ReportActions
               disabled={!rows}
               filename={`Commission_${from}_${to}`}
@@ -86,7 +94,7 @@ const CommissionReportPage: React.FC = () => {
                 {rows.length === 0 && <tr><td colSpan={10} className="mst-empty">No records.</td></tr>}
                 {rows.map((row, i) => (
                   <tr key={`${row.billNo}-${i}`} className="mst-click-row" onClick={() => openBill(row.billNo)}>
-                    <td>{i + 1}</td>
+                    <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                     <td>{row.billNo}</td>
                     <td>{row.date}</td>
                     <td>{row.productName}</td>
@@ -100,7 +108,7 @@ const CommissionReportPage: React.FC = () => {
                 ))}
                 {rows.length > 0 && (
                   <tr>
-                    <td colSpan={7}><strong>Grand Total</strong></td>
+                    <td colSpan={7}><strong>Page total</strong></td>
                     <td className="num"><strong>{n2(sum(rows, 'total'))}</strong></td>
                     <td />
                     <td className="num"><strong>{n2(sum(rows, 'commissionAmount'))}</strong></td>
@@ -109,6 +117,7 @@ const CommissionReportPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={(p) => search(p)} />
         </div>
       )}
       {billModal}

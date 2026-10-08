@@ -35,8 +35,15 @@ public class MasterController {
     }
 
     @GetMapping("/categories")
-    public ResponseDO categories() {
-        return ok(masterService.categories());
+    public ResponseDO categories(@RequestParam(defaultValue = "0") int page,
+                                 @RequestParam(defaultValue = "25") int size,
+                                 @RequestParam(required = false) String q) {
+        return ok(masterService.categories(page, size, q));
+    }
+
+    @GetMapping("/categories/all")
+    public ResponseDO categoriesAll() {
+        return ok(masterService.categoriesAll());
     }
 
     @PostMapping("/categories")
@@ -52,8 +59,15 @@ public class MasterController {
     }
 
     @GetMapping("/brands")
-    public ResponseDO brands() {
-        return ok(masterService.brands());
+    public ResponseDO brands(@RequestParam(defaultValue = "0") int page,
+                             @RequestParam(defaultValue = "25") int size,
+                             @RequestParam(required = false) String q) {
+        return ok(masterService.brands(page, size, q));
+    }
+
+    @GetMapping("/brands/all")
+    public ResponseDO brandsAll() {
+        return ok(masterService.brandsAll());
     }
 
     @PostMapping("/brands")
@@ -69,8 +83,10 @@ public class MasterController {
     }
 
     @GetMapping("/units")
-    public ResponseDO units() {
-        return ok(masterService.units());
+    public ResponseDO units(@RequestParam(defaultValue = "0") int page,
+                            @RequestParam(defaultValue = "25") int size,
+                            @RequestParam(required = false) String q) {
+        return ok(masterService.units(page, size, q));
     }
 
     @PostMapping("/units")
@@ -86,8 +102,15 @@ public class MasterController {
     }
 
     @GetMapping("/customers")
-    public ResponseDO customers() {
-        return ok(masterService.customers());
+    public ResponseDO customers(@RequestParam(defaultValue = "0") int page,
+                                @RequestParam(defaultValue = "25") int size,
+                                @RequestParam(required = false) String q) {
+        return ok(masterService.customers(page, size, q));
+    }
+
+    @GetMapping("/customers/all")
+    public ResponseDO customersAll() {
+        return ok(masterService.customersAll());
     }
 
     @PostMapping("/customers")
@@ -103,8 +126,15 @@ public class MasterController {
     }
 
     @GetMapping("/products")
-    public ResponseDO products() {
-        return ok(masterService.products());
+    public ResponseDO products(@RequestParam(defaultValue = "0") int page,
+                               @RequestParam(defaultValue = "25") int size,
+                               @RequestParam(required = false) String q) {
+        return ok(masterService.products(page, size, q));
+    }
+
+    @GetMapping("/product-options")
+    public ResponseDO productOptions() {
+        return ok(masterService.productOptions());
     }
 
     @PostMapping("/products")
@@ -120,8 +150,10 @@ public class MasterController {
     }
 
     @GetMapping("/stock/products")
-    public ResponseDO stockProducts() {
-        return ok(masterService.stockProducts());
+    public ResponseDO stockProducts(@RequestParam(defaultValue = "0") int page,
+                                    @RequestParam(defaultValue = "25") int size,
+                                    @RequestParam(required = false) String q) {
+        return ok(masterService.stockProducts(page, size, q));
     }
 
     @PostMapping("/stock/adjust")
@@ -148,8 +180,10 @@ public class MasterController {
     }
 
     @GetMapping("/tables")
-    public ResponseDO cafeTables() {
-        return ok(masterService.cafeTables());
+    public ResponseDO cafeTables(@RequestParam(defaultValue = "0") int page,
+                                 @RequestParam(defaultValue = "25") int size,
+                                 @RequestParam(required = false) String q) {
+        return ok(masterService.cafeTables(page, size, q));
     }
 
     @PostMapping("/tables")
@@ -166,8 +200,10 @@ public class MasterController {
 
     @GetMapping("/bulk-products")
     public ResponseDO bulkProducts(@RequestParam(required = false) String name,
-                                   @RequestParam(required = false) Long categoryId) {
-        return ok(masterService.bulkProducts(name, categoryId));
+                                   @RequestParam(required = false) Long categoryId,
+                                   @RequestParam(defaultValue = "0") int page,
+                                   @RequestParam(defaultValue = "25") int size) {
+        return ok(masterService.bulkProducts(name, categoryId, page, size));
     }
 
     @PostMapping("/bulk-products")
@@ -176,8 +212,10 @@ public class MasterController {
     }
 
     @GetMapping("/barcodes")
-    public ResponseDO barcodes() {
-        return ok(masterService.barcodes());
+    public ResponseDO barcodes(@RequestParam(defaultValue = "0") int page,
+                               @RequestParam(defaultValue = "25") int size,
+                               @RequestParam(required = false) String q) {
+        return ok(masterService.barcodes(page, size, q));
     }
 
     private Long currentUserId() {

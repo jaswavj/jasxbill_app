@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { masterApi, masterData, masterError } from '../../../api/master/master-api-service';
+import { masterApi, masterError, masterPage } from '../../../api/master/master-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import './Master.css';
 
 type Customer = {
@@ -26,21 +27,29 @@ const empty = {
 
 const CustomersPage: React.FC = () => {
   const [rows, setRows] = useState<Customer[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [form, setForm] = useState(empty);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const refresh = async () => {
+  const refresh = async (p = page) => {
     try {
-      setRows(masterData<Customer[]>(await masterApi.customers()) || []);
+      const pg = masterPage<Customer>(await masterApi.customers(p, DEFAULT_PAGE_SIZE, search.trim() || undefined));
+      setRows(pg.items);
+      setTotal(pg.total);
     } catch (err) {
       toast.error(masterError(err, 'Could not load customers'));
     }
   };
 
   useEffect(() => {
-    refresh();
-  }, []);
+    setPage(0);
+  }, [search]);
+
+  useEffect(() => {
+    refresh(page);
+  }, [page, search]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,10 +86,6 @@ const CustomersPage: React.FC = () => {
       setBusy(false);
     }
   };
-
-  const filtered = rows.filter((r) =>
-    [r.name, r.phone, r.gstin, r.address].join(' ').toLowerCase().includes(search.toLowerCase())
-  );
 
   return (
     <div className="mst-page">
@@ -153,9 +158,9 @@ const CustomersPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((row, i) => (
+              {rows.map((row, i) => (
                 <tr key={row.id}>
-                  <td>{i + 1}</td>
+                  <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                   <td>{row.name}</td>
                   <td>{row.phone}</td>
                   <td>{row.gstin}</td>
@@ -185,6 +190,7 @@ const CustomersPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={setPage} />
       </div>
     </div>
   );

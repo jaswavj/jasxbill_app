@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
-import { inventoryApi, invData, invError } from '../../../api/inventory/inventory-api-service';
+import { inventoryApi, invData, invError, invPage } from '../../../api/inventory/inventory-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import '../master/Master.css';
 import ReportActions from '../account-reports/ReportActions';
 
@@ -23,14 +24,21 @@ const SupplierPaymentReportPage: React.FC = () => {
   const [to, setTo] = useState(today());
   const [supplierId, setSupplierId] = useState('0');
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
-    inventoryApi.suppliers().then((res) => setSuppliers(invData<Supplier[]>(res) || [])).catch(() => undefined);
+    inventoryApi.suppliersAll().then((res) => setSuppliers(invData<Supplier[]>(res) || [])).catch(() => undefined);
   }, []);
 
-  const search = async () => {
+  const search = async (p = 0) => {
     try {
-      setRows(invData<Row[]>(await inventoryApi.paymentReport(from, to, supplierId === '0' ? undefined : Number(supplierId))) || []);
+      const pg = invPage<Row>(await inventoryApi.paymentReport(
+        from, to, supplierId === '0' ? undefined : Number(supplierId), p, DEFAULT_PAGE_SIZE,
+      ));
+      setRows(pg.items);
+      setTotal(pg.total);
+      setPage(p);
     } catch (err) {
       toast.error(invError(err, 'Could not load report'));
     }
@@ -74,7 +82,7 @@ const SupplierPaymentReportPage: React.FC = () => {
             </select>
           </div>
           <div className="mst-actions">
-            <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button>
+            <button className="mst-btn mst-btn-primary" type="button" onClick={() => search(0)}>Generate Report</button>
             <ReportActions
               disabled={!rows}
               filename={`Supplier_Payment_${from}_${to}`}
@@ -110,7 +118,7 @@ const SupplierPaymentReportPage: React.FC = () => {
                 {rows.length === 0 && <tr><td colSpan={7} className="mst-empty">No payments in this period.</td></tr>}
                 {rows.map((row, i) => (
                   <tr key={row.id}>
-                    <td>{i + 1}</td>
+                    <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                     <td>{row.date}</td>
                     <td>{row.prno}</td>
                     <td>{row.supplierName}</td>
@@ -123,7 +131,7 @@ const SupplierPaymentReportPage: React.FC = () => {
               {rows.length > 0 && (
                 <tfoot>
                   <tr>
-                    <td colSpan={4}><b>Total</b></td>
+                    <td colSpan={4}><b>Page total</b></td>
                     <td className="num"><b>{totals.total.toFixed(2)}</b></td>
                     <td className="num"><b>{totals.paid.toFixed(2)}</b></td>
                     <td className="num"><b>{totals.balance.toFixed(2)}</b></td>
@@ -132,6 +140,7 @@ const SupplierPaymentReportPage: React.FC = () => {
               )}
             </table>
           </div>
+          <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={(p) => search(p)} />
         </div>
       )}
     </div>

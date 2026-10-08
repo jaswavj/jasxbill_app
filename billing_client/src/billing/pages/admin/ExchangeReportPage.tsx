@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { toast } from 'react-toastify';
-import { adminApi, adminData, adminError } from '../../../api/admin/admin-api-service';
+import { adminApi, adminError, adminPage } from '../../../api/admin/admin-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import '../master/Master.css';
 import '../credit/Credit.css';
 import ReportActions from '../account-reports/ReportActions';
@@ -17,11 +18,16 @@ const ExchangeReportPage: React.FC = () => {
   const [to, setTo] = useState(today());
   const [type, setType] = useState('0');
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
 
-  const search = async () => {
+  const search = async (p = 0) => {
     try {
       const t = Number(type);
-      setRows(adminData<Row[]>(await adminApi.exchangeReport(from, to, t || undefined)) || []);
+      const pg = adminPage<Row>(await adminApi.exchangeReport(from, to, t || undefined, p, DEFAULT_PAGE_SIZE));
+      setRows(pg.items);
+      setTotal(pg.total);
+      setPage(p);
     } catch (err) {
       toast.error(adminError(err, 'Could not load report'));
     }
@@ -43,7 +49,7 @@ const ExchangeReportPage: React.FC = () => {
             </select>
           </div>
           <div className="mst-actions">
-            <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate</button>
+            <button className="mst-btn mst-btn-primary" type="button" onClick={() => search(0)}>Generate</button>
             <ReportActions
               disabled={!rows}
               filename={`Exchange_Report_${from}_${to}`}
@@ -77,7 +83,7 @@ const ExchangeReportPage: React.FC = () => {
                 {rows.length === 0 && <tr><td colSpan={9} className="mst-empty">No exchange or return records in this period.</td></tr>}
                 {rows.map((row, i) => (
                   <tr key={row.id} className={row.type === 2 ? 'crd-row-old' : 'crd-row-adv'}>
-                    <td>{i + 1}</td>
+                    <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                     <td>{row.dateTime}</td>
                     <td>{row.billNo}</td>
                     <td>{row.customer}</td>
@@ -95,6 +101,7 @@ const ExchangeReportPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={(p) => search(p)} />
         </div>
       )}
     </div>

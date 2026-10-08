@@ -81,7 +81,7 @@ public class BillingController {
 
     @GetMapping("/holds/{id}")
     public ResponseDO holdDetails(@PathVariable Long id) {
-        return ok(readService.quotationDetails(id));
+        return ok(readService.quotationForEdit(id));
     }
 
     @GetMapping("/holds/{id}/print")
@@ -101,8 +101,11 @@ public class BillingController {
     }
 
     @GetMapping("/month-bills")
-    public ResponseDO monthBills(@RequestParam int year, @RequestParam int month) {
-        return ok(readService.monthBills(year, month));
+    public ResponseDO monthBills(@RequestParam int year,
+                                 @RequestParam int month,
+                                 @RequestParam(defaultValue = "0") int page,
+                                 @RequestParam(defaultValue = "12") int size) {
+        return ok(readService.monthBills(year, month, page, size));
     }
 
     @GetMapping("/edit/{billNo}")

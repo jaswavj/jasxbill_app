@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
-import { masterApi, masterData, masterError } from '../../../api/master/master-api-service';
+import { masterApi, masterError, masterPage } from '../../../api/master/master-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import { useHeadings } from './useHeadings';
 import './Master.css';
 
@@ -22,6 +23,8 @@ const REASONS = ['Broken', 'Expired', 'Damaged in Transit', 'Quality Issue', 'Of
 const StockPage: React.FC = () => {
   const heads = useHeadings();
   const [rows, setRows] = useState<StockRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<StockRow | null>(null);
   const [type, setType] = useState('');
@@ -30,17 +33,23 @@ const StockPage: React.FC = () => {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const refresh = async () => {
+  const refresh = async (p = page) => {
     try {
-      setRows(masterData<StockRow[]>(await masterApi.stockProducts()) || []);
+      const pg = masterPage<StockRow>(await masterApi.stockProducts(p, DEFAULT_PAGE_SIZE, search.trim() || undefined));
+      setRows(pg.items);
+      setTotal(pg.total);
     } catch (err) {
       toast.error(masterError(err, 'Could not load stock'));
     }
   };
 
   useEffect(() => {
-    refresh();
-  }, []);
+    setPage(0);
+  }, [search]);
+
+  useEffect(() => {
+    refresh(page);
+  }, [page, search]);
 
   const displayStock = useMemo(() => {
     if (!selected) return '';
@@ -92,9 +101,6 @@ const StockPage: React.FC = () => {
     }
   };
 
-  const filtered = rows.filter((r) =>
-    [r.name, r.code, r.categoryName, r.brandName].join(' ').toLowerCase().includes(search.toLowerCase())
-  );
   const showReasonCat = type === '3' || type === '4';
 
   return (
@@ -168,9 +174,9 @@ const StockPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((row, i) => (
+              {rows.map((row, i) => (
                 <tr key={row.id} onClick={() => setSelected(row)} style={{ cursor: 'pointer' }}>
-                  <td>{i + 1}</td>
+                  <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                   <td>{row.name}</td>
                   <td>{row.code}</td>
                   <td>{row.categoryName}</td>
@@ -181,6 +187,7 @@ const StockPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={setPage} />
       </div>
     </div>
   );

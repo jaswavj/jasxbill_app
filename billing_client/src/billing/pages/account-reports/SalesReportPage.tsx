@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { accountApi, accountData, accountError } from '../../../api/account-reports/account-report-api-service';
 import { adminApi, adminData } from '../../../api/admin/admin-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE, normalizePage } from '../../components/ListPagination';
 import '../master/Master.css';
 import { n3, sum, today } from './reportHelpers';
 import { useBillDetail } from './BillDetailModal';
@@ -27,23 +28,58 @@ const SalesReportPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [bills, setBills] = useState<Bill[] | null>(null);
   const [dues, setDues] = useState<Due[]>([]);
+  const [billTotal, setBillTotal] = useState(0);
+  const [dueTotal, setDueTotal] = useState(0);
+  const [billPage, setBillPage] = useState(0);
+  const [duePage, setDuePage] = useState(0);
   const { openBill, billModal } = useBillDetail();
 
   useEffect(() => {
     adminApi.users().then((res) => setUsers(adminData<User[]>(res) || [])).catch(() => undefined);
   }, []);
 
-  const search = async () => {
+  const fetchSales = async (billP: number, dueP: number, resetDues = false) => {
+    const modeN = Number(mode);
+    const typeN = Number(type);
+    const userN = Number(userId);
+    const taxN = Number(taxBill);
     try {
-      const data = accountData<{ bills: Bill[]; dues: Due[] }>(
-        await accountApi.sales(from, to, Number(mode), Number(type), Number(userId), Number(taxBill))
-      );
-      setBills(data.bills || []);
-      setDues(data.dues || []);
+      if (resetDues) {
+        const data = accountData<{ bills: Bill[] | ReturnType<typeof normalizePage<Bill>>; dues: Due[] | ReturnType<typeof normalizePage<Due>> }>(
+          await accountApi.sales(from, to, modeN, typeN, userN, taxN, 0, DEFAULT_PAGE_SIZE),
+        );
+        const billsPg = normalizePage(data.bills);
+        const duesPg = normalizePage(data.dues);
+        setBills(billsPg.items);
+        setBillTotal(billsPg.total);
+        setBillPage(0);
+        setDues(duesPg.items);
+        setDueTotal(duesPg.total);
+        setDuePage(0);
+        return;
+      }
+      const [billRes, dueRes] = await Promise.all([
+        accountApi.sales(from, to, modeN, typeN, userN, taxN, billP, DEFAULT_PAGE_SIZE),
+        accountApi.sales(from, to, modeN, typeN, userN, taxN, dueP, DEFAULT_PAGE_SIZE),
+      ]);
+      const billData = accountData<{ bills: Bill[] | ReturnType<typeof normalizePage<Bill>>; dues: Due[] | ReturnType<typeof normalizePage<Due>> }>(billRes);
+      const dueData = accountData<{ bills: Bill[] | ReturnType<typeof normalizePage<Bill>>; dues: Due[] | ReturnType<typeof normalizePage<Due>> }>(dueRes);
+      const billsPg = normalizePage(billData.bills);
+      const duesPg = normalizePage(dueData.dues);
+      setBills(billsPg.items);
+      setBillTotal(billsPg.total);
+      setBillPage(billP);
+      setDues(duesPg.items);
+      setDueTotal(duesPg.total);
+      setDuePage(dueP);
     } catch (err) {
       toast.error(accountError(err, 'Could not load sales report'));
     }
   };
+
+  const search = () => fetchSales(0, 0, true);
+  const loadBills = (p: number) => fetchSales(p, duePage, false);
+  const loadDues = (p: number) => fetchSales(billPage, p, false);
 
   const showCash = mode !== '2';
   const showBank = mode !== '1';
@@ -90,7 +126,7 @@ const SalesReportPage: React.FC = () => {
             </select>
           </div>
           <div className="mst-actions">
-            <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button>
+            <button className="mst-btn mst-btn-primary" type="button" onClick={() => search()}>Generate Report</button>
             <ReportActions
               disabled={!bills}
               filename={`Sales_Report_${from}_${to}`}
@@ -140,7 +176,7 @@ const SalesReportPage: React.FC = () => {
                   {bills.length === 0 && <tr><td colSpan={13} className="mst-empty">No sales found.</td></tr>}
                   {bills.map((row, i) => (
                     <tr key={`${row.billNo}-${i}`} className="mst-click-row" onClick={() => openBill(row.billNo)}>
-                      <td>{i + 1}</td>
+                      <td>{billPage * DEFAULT_PAGE_SIZE + i + 1}</td>
                       <td>{row.billNo}</td>
                       <td>{row.customer}</td>
                       <td className="num">{n3(row.total)}</td>
@@ -157,7 +193,7 @@ const SalesReportPage: React.FC = () => {
                   ))}
                   {bills.length > 0 && (
                     <tr>
-                      <td colSpan={3}><strong>Grand Total</strong></td>
+                      <td colSpan={3}><strong>Page total</strong></td>
                       <td className="num"><strong>{n3(sum(bills, 'total'))}</strong></td>
                       <td className="num"><strong>{n3(sum(bills, 'payable'))}</strong></td>
                       <td className="num"><strong>{n3(sum(bills, 'paid'))}</strong></td>
@@ -171,6 +207,7 @@ const SalesReportPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+            <ListPagination page={billPage} size={DEFAULT_PAGE_SIZE} total={billTotal} onChange={(p) => loadBills(p)} />
           </div>
           <div className="mst-card">
             <div className="mst-card-h">Due Collection {from} — {to}</div>
@@ -186,7 +223,7 @@ const SalesReportPage: React.FC = () => {
                   {dues.length === 0 && <tr><td colSpan={10} className="mst-empty">No due collections.</td></tr>}
                   {dues.map((row, i) => (
                     <tr key={`${row.customer}-${i}`}>
-                      <td>{i + 1}</td>
+                      <td>{duePage * DEFAULT_PAGE_SIZE + i + 1}</td>
                       <td>{row.customer}</td>
                       <td className="num">{n3(row.balance)}</td>
                       <td className="num">{n3(row.cashPaid)}</td>
@@ -200,7 +237,7 @@ const SalesReportPage: React.FC = () => {
                   ))}
                   {dues.length > 0 && (
                     <tr>
-                      <td colSpan={3}><strong>Grand Total</strong></td>
+                      <td colSpan={3}><strong>Page total</strong></td>
                       <td className="num"><strong>{n3(sum(dues, 'cashPaid'))}</strong></td>
                       <td className="num"><strong>{n3(sum(dues, 'bankPaid'))}</strong></td>
                       <td colSpan={5} />
@@ -209,6 +246,7 @@ const SalesReportPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+            <ListPagination page={duePage} size={DEFAULT_PAGE_SIZE} total={dueTotal} onChange={(p) => loadDues(p)} />
           </div>
         </>
       )}

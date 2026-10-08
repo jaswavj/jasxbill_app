@@ -1,5 +1,6 @@
 package com.billing.expense;
 
+import com.billing.common.JdbcPageHelper;
 import com.billing.core.response.ResponseDO;
 import com.billing.expense.dto.ExpenseSaveRequest;
 import com.billing.expense.dto.ExpenseTypeSaveRequest;
@@ -22,8 +23,9 @@ public class ExpenseController {
     private final PlatformSecurityContext securityContext;
 
     @GetMapping("/types")
-    public ResponseDO types() {
-        return ok(expenseService.types());
+    public ResponseDO types(@RequestParam(defaultValue = "0") int page,
+                            @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(expenseService.types(), page, size));
     }
 
     @PostMapping("/types")
@@ -46,8 +48,10 @@ public class ExpenseController {
     @GetMapping("/report")
     public ResponseDO report(@RequestParam String from,
                              @RequestParam String to,
-                             @RequestParam(required = false) Long typeId) {
-        return ok(expenseService.report(from, to, typeId));
+                             @RequestParam(required = false) Long typeId,
+                             @RequestParam(defaultValue = "0") int page,
+                             @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(expenseService.report(from, to, typeId), page, size));
     }
 
     private Long currentUserId() {

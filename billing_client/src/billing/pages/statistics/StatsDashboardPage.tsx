@@ -20,6 +20,8 @@ import { billingApi } from '../../../api/billing/billing-api-service';
 import { handleThermalDispatch } from '../../../api/billing/local-print-agent';
 import { statsApi, statsData, statsError } from '../../../api/statistics/statistics-api-service';
 import { routerPathNames } from '../../../routes/routerPathNames';
+import ListPagination from '../../components/ListPagination';
+import { normalizePage } from '../../components/ListPagination';
 import { useBillDetail } from '../account-reports/BillDetailModal';
 import '../admin/MonthlyBills.css';
 import '../master/Master.css';
@@ -132,18 +134,26 @@ const StatsDashboardPage: React.FC = () => {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [data, setData] = useState<Dash | null>(null);
   const [bills, setBills] = useState<BillCard[]>([]);
+  const [billsTotal, setBillsTotal] = useState(0);
+  const [billPage, setBillPage] = useState(0);
+  const BILL_PAGE_SIZE = 12;
   const [pieIndex, setPieIndex] = useState(0);
 
-  const loadBills = async (y: number, m: number, fromDash?: BillCard[]) => {
-    if (fromDash) {
-      setBills(fromDash);
-      return;
-    }
+  const loadBills = async (y: number, m: number, p = billPage) => {
     try {
-      const res: any = await billingApi.monthBills(y, m);
-      setBills(res?.success ? (res.data || []) : []);
+      const res: any = await billingApi.monthBills(y, m, p, BILL_PAGE_SIZE);
+      if (res?.success) {
+        const pg = normalizePage<BillCard>(res.data);
+        setBills(pg.items);
+        setBillsTotal(pg.total);
+        setBillPage(pg.page);
+      } else {
+        setBills([]);
+        setBillsTotal(0);
+      }
     } catch {
       setBills([]);
+      setBillsTotal(0);
     }
   };
 
@@ -151,7 +161,8 @@ const StatsDashboardPage: React.FC = () => {
     try {
       const dash = statsData<Dash>(await statsApi.dashboard(y, m));
       setData(dash);
-      await loadBills(y, m, dash.bills);
+      setBillPage(0);
+      await loadBills(y, m, 0);
     } catch (err) {
       toast.error(statsError(err, 'Could not load dashboard'));
     }
@@ -306,7 +317,7 @@ const StatsDashboardPage: React.FC = () => {
             </div>
           </div>
           <div className="mst-card" style={{ marginTop: 12 }}>
-            <div className="mst-card-h">Bills — {data.label} ({bills.length})</div>
+            <div className="mst-card-h">Bills — {data.label} ({billsTotal})</div>
             <div className="mst-card-b">
               {bills.length === 0 ? (
                 <div className="mst-empty">No bills in this month.</div>
@@ -352,6 +363,12 @@ const StatsDashboardPage: React.FC = () => {
                   ))}
                 </div>
               )}
+              <ListPagination
+                page={billPage}
+                size={BILL_PAGE_SIZE}
+                total={billsTotal}
+                onChange={(p) => loadBills(year, month, p)}
+              />
             </div>
           </div>
         </>

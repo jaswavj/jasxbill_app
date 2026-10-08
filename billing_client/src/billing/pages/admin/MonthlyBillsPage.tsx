@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { billingApi } from '../../../api/billing/billing-api-service';
+import ListPagination, { normalizePage } from '../../components/ListPagination';
 import { handleThermalDispatch } from '../../../api/billing/local-print-agent';
 import { routerPathNames } from '../../../routes/routerPathNames';
 import { useBillDetail } from '../account-reports/BillDetailModal';
@@ -53,19 +54,26 @@ const MonthlyBillsPage: React.FC = () => {
   const { openBill, billModal } = useBillDetail();
   const [month, setMonth] = useState(monthValue());
   const [rows, setRows] = useState<Card[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 12;
   const [loading, setLoading] = useState(false);
 
-  const load = async (value = month) => {
+  const load = async (value = month, p = page) => {
     const [y, m] = value.split('-').map(Number);
     if (!y || !m) return;
     setLoading(true);
     try {
-      const res: any = await billingApi.monthBills(y, m);
+      const res: any = await billingApi.monthBills(y, m, p, PAGE_SIZE);
       if (!res?.success) throw new Error(res?.data?.error || 'Could not load bills');
-      setRows(res.data || []);
+      const pg = normalizePage<Card>(res.data);
+      setRows(pg.items);
+      setTotal(pg.total);
+      setPage(pg.page);
     } catch (err: any) {
       toast.error(err?.response?.data?.data?.error || err?.message || 'Could not load bills');
       setRows([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -112,7 +120,7 @@ const MonthlyBillsPage: React.FC = () => {
             <input className="mst-inp" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
           </div>
           <div className="mst-actions">
-            <button className="mst-btn mst-btn-primary" type="button" disabled={loading} onClick={() => load()}>
+            <button className="mst-btn mst-btn-primary" type="button" disabled={loading} onClick={() => { setPage(0); load(month, 0); }}>
               {loading ? 'Loading…' : 'Show Bills'}
             </button>
           </div>
@@ -160,6 +168,7 @@ const MonthlyBillsPage: React.FC = () => {
               </div>
             </article>
           ))}
+          <ListPagination page={page} size={PAGE_SIZE} total={total} onChange={(p) => load(month, p)} />
         </div>
       )}
       {billModal}

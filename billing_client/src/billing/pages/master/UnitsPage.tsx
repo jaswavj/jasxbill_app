@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { masterApi, masterData, masterError } from '../../../api/master/master-api-service';
+import { masterApi, masterError, masterPage } from '../../../api/master/master-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import './Master.css';
 
 type Unit = {
@@ -15,21 +16,29 @@ const empty = { id: 0, name: '', convertionUnit: '', convertionCalculation: '' }
 
 const UnitsPage: React.FC = () => {
   const [rows, setRows] = useState<Unit[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [form, setForm] = useState(empty);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const refresh = async () => {
+  const refresh = async (p = page) => {
     try {
-      setRows(masterData<Unit[]>(await masterApi.units()) || []);
+      const pg = masterPage<Unit>(await masterApi.units(p, DEFAULT_PAGE_SIZE, search.trim() || undefined));
+      setRows(pg.items);
+      setTotal(pg.total);
     } catch (err) {
       toast.error(masterError(err, 'Could not load units'));
     }
   };
 
   useEffect(() => {
-    refresh();
-  }, []);
+    setPage(0);
+  }, [search]);
+
+  useEffect(() => {
+    refresh(page);
+  }, [page, search]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,8 +73,6 @@ const UnitsPage: React.FC = () => {
       toast.error(masterError(err, 'Status update failed'));
     }
   };
-
-  const filtered = rows.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="mst-page">
@@ -128,9 +135,9 @@ const UnitsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((row, i) => (
+              {rows.map((row, i) => (
                 <tr key={row.id}>
-                  <td>{i + 1}</td>
+                  <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                   <td>{row.name}</td>
                   <td>{row.convertionUnit || '-'}</td>
                   <td>{row.convertionCalculation ?? '-'}</td>
@@ -155,6 +162,7 @@ const UnitsPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={setPage} />
       </div>
     </div>
   );

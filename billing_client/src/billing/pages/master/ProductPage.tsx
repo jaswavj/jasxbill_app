@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
-import { masterApi, masterData, masterError } from '../../../api/master/master-api-service';
+import { masterApi, masterData, masterError, masterPage } from '../../../api/master/master-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import { useHeadings } from './useHeadings';
 import './Master.css';
 
@@ -52,21 +53,21 @@ const ProductPage: React.FC = () => {
     units: [],
   });
   const [rows, setRows] = useState<Product[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [form, setForm] = useState(emptyForm);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [otherOpen, setOtherOpen] = useState(false);
 
-  const load = async () => {
+  const loadLookups = async () => {
     try {
-      const [lookupRes, productRes] = await Promise.all([masterApi.lookups(), masterApi.products()]);
-      const lookup = masterData<any>(lookupRes);
+      const lookup = masterData<any>(await masterApi.lookups());
       setLookups({
         categories: lookup.categories || [],
         brands: lookup.brands || [],
         units: lookup.units || [],
       });
-      setRows(masterData<Product[]>(productRes) || []);
       setForm((prev) => {
         if (prev.id) return prev;
         const others = (lookup.brands || []).find((b: Named) => /other/i.test(b.name));
@@ -78,18 +79,73 @@ const ProductPage: React.FC = () => {
         };
       });
     } catch (err) {
+      toast.error(masterError(err, 'Could not load lookups'));
+    }
+  };
+
+  const refreshProducts = async (p = page) => {
+    try {
+      const pg = masterPage<Product>(await masterApi.products(p, DEFAULT_PAGE_SIZE, search.trim() || undefined));
+      setRows(pg.items);
+      setTotal(pg.total);
+    } catch (err) {
       toast.error(masterError(err, 'Could not load products'));
     }
   };
 
   useEffect(() => {
-    load();
+    loadLookups();
   }, []);
+
+  useEffect(() => {
+    setPage(0);
+  }, [search]);
+
+  useEffect(() => {
+    refreshProducts(page);
+  }, [page, search]);
 
   const selectedUnit = useMemo(
     () => lookups.units.find((u) => String(u.id) === form.unitId),
     [lookups.units, form.unitId]
   );
+
+  const convFactor = useMemo(() => {
+    if (!selectedUnit?.convertionUnit?.trim()) return 0;
+    const n = Number(selectedUnit.convertionCalculation);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }, [selectedUnit]);
+
+  const convUnitName = selectedUnit?.convertionUnit?.trim() || '';
+
+  const unitConvFactor = (unitId: number) => {
+    const unit = lookups.units.find((u) => u.id === unitId);
+    if (!unit?.convertionUnit?.trim()) return 0;
+    const f = Number(unit.convertionCalculation);
+    return Number.isFinite(f) && f > 0 ? f : 0;
+  };
+
+  /** DB stores cost / mrp / commission per conversion unit; form uses base unit (same as add). */
+  const storedToFormAmount = (stored: number, unitId: number) => {
+    const f = unitConvFactor(unitId);
+    if (!f) return stored;
+    return Number((stored * f).toFixed(4));
+  };
+
+  const formAmountText = (n: number) => {
+    if (!Number.isFinite(n)) return '';
+    if (Number.isInteger(n)) return String(n);
+    return n.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+  };
+
+  const convHint = (baseVal: string, skip = false) => {
+    if (!convFactor || skip) return null;
+    const n = Number(baseVal);
+    if (!Number.isFinite(n)) return null;
+    const per = n / convFactor;
+    const text = Number.isInteger(per) ? String(per) : per.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+    return <span className="mst-conv-hint">{text} / {convUnitName}</span>;
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,17 +179,13 @@ const ProductPage: React.FC = () => {
       }
       setForm(emptyForm);
       setOtherOpen(false);
-      await load();
+      await refreshProducts();
     } catch (err) {
       toast.error(masterError(err, 'Save failed'));
     } finally {
       setBusy(false);
     }
   };
-
-  const filtered = rows.filter((r) =>
-    [r.name, r.code, r.categoryName, r.brandName].join(' ').toLowerCase().includes(search.toLowerCase())
-  );
 
   return (
     <div className="mst-page">
@@ -185,10 +237,12 @@ const ProductPage: React.FC = () => {
             <div className="mst-fg">
               <label>Cost Price <span className="req">*</span></label>
               <input className="mst-inp" type="number" step="0.001" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} />
+              {convHint(form.cost)}
             </div>
             <div className="mst-fg">
               <label>MRP <span className="req">*</span></label>
               <input className="mst-inp" type="number" step="0.001" value={form.mrp} onChange={(e) => setForm({ ...form, mrp: e.target.value })} />
+              {convHint(form.mrp)}
             </div>
             <div className="mst-other">
               <button className="mst-other-btn" type="button" onClick={() => setOtherOpen((open) => !open)}>
@@ -213,11 +267,14 @@ const ProductPage: React.FC = () => {
                   <div className="mst-fg">
                     <label>Stock</label>
                     <input className="mst-inp" type="number" min="0" step="0.01" disabled={form.id > 0} value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
-                    {selectedUnit?.convertionUnit && <span className="mst-note">Conversion: {selectedUnit.convertionUnit}</span>}
+                    {convFactor > 0 && (
+                      <span className="mst-note">Conversion: {convUnitName} ({convFactor} per {selectedUnit?.name})</span>
+                    )}
                   </div>
                   <div className="mst-fg">
                     <label>Commission (Rs)</label>
                     <input className="mst-inp" type="number" step="0.01" value={form.commission} onChange={(e) => setForm({ ...form, commission: e.target.value })} />
+                    {convHint(form.commission)}
                   </div>
                   <div className="mst-fg">
                     <label>Discount Type</label>
@@ -241,6 +298,7 @@ const ProductPage: React.FC = () => {
                       value={form.discount}
                       onChange={(e) => setForm({ ...form, discount: e.target.value })}
                     />
+                    {convHint(form.discount, form.discType !== '1')}
                   </div>
                 </div>
               )}
@@ -285,14 +343,16 @@ const ProductPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((row, i) => (
+                {rows.map((row, i) => (
                   <tr key={row.id}>
-                    <td>{i + 1}</td>
+                    <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                     <td>
                       <button
                         className="mst-icon-btn"
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
+                          const uid = Number(row.unitId) || 0;
+                          setOtherOpen(true);
                           setForm({
                             id: row.id,
                             categoryId: String(row.categoryId || ''),
@@ -302,15 +362,15 @@ const ProductPage: React.FC = () => {
                             hsn: row.hsn || '',
                             unitId: String(row.unitId || ''),
                             stock: String(row.stock ?? 0),
-                            cost: String(row.cost ?? ''),
-                            mrp: String(row.mrp ?? ''),
-                            commission: String(row.commission ?? 0),
+                            cost: formAmountText(storedToFormAmount(Number(row.cost ?? 0), uid)),
+                            mrp: formAmountText(storedToFormAmount(Number(row.mrp ?? 0), uid)),
+                            commission: formAmountText(storedToFormAmount(Number(row.commission ?? 0), uid)),
                             discType: String(row.discType ?? 0),
                             discount: String(row.discount ?? 0),
                             gst: String(row.gst ?? 0),
                             blockIt: false,
-                          })
-                        }
+                          });
+                        }}
                       >
                         <i className="fas fa-edit" />
                       </button>
@@ -325,6 +385,7 @@ const ProductPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={setPage} />
         </div>
       </div>
     </div>

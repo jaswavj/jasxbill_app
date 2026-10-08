@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { accountData, accountError } from '../../../api/account-reports/account-report-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE, normalizePage } from '../../components/ListPagination';
 import '../master/Master.css';
 import { n3, sum, today } from './reportHelpers';
 import { useBillDetail } from './BillDetailModal';
@@ -18,7 +19,7 @@ type Props = {
   icon: string;
   filterLabel: string;
   loadOptions: () => Promise<any>;
-  searchRows: (from: string, to: string, id: number) => Promise<any>;
+  searchRows: (from: string, to: string, id: number, page: number, size: number) => Promise<any>;
 };
 
 const LineSalesReport: React.FC<Props> = ({ title, icon, filterLabel, loadOptions, searchRows }) => {
@@ -27,19 +28,26 @@ const LineSalesReport: React.FC<Props> = ({ title, icon, filterLabel, loadOption
   const [id, setId] = useState('');
   const [options, setOptions] = useState<Opt[]>([]);
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const { openBill, billModal } = useBillDetail();
 
   useEffect(() => {
     loadOptions().then((res) => setOptions(accountData<Opt[]>(res) || [])).catch(() => undefined);
   }, [loadOptions]);
 
-  const search = async () => {
+  const search = async (p = 0) => {
     if (!id) {
       toast.error(`Please select a ${filterLabel.toLowerCase()}`);
       return;
     }
     try {
-      setRows(accountData<Row[]>(await searchRows(from, to, Number(id))) || []);
+      const pg = normalizePage(accountData<Row[] | ReturnType<typeof normalizePage>>(
+        await searchRows(from, to, Number(id), p, DEFAULT_PAGE_SIZE),
+      ));
+      setRows(pg.items);
+      setTotal(pg.total);
+      setPage(p);
     } catch (err) {
       toast.error(accountError(err, 'Could not load report'));
     }
@@ -60,7 +68,7 @@ const LineSalesReport: React.FC<Props> = ({ title, icon, filterLabel, loadOption
             </select>
           </div>
           <div className="mst-actions">
-            <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button>
+            <button className="mst-btn mst-btn-primary" type="button" onClick={() => search(0)}>Generate Report</button>
             <ReportActions
               disabled={!rows}
               filename={`${title.replace(/\s+/g, '_')}_${from}_${to}`}
@@ -98,7 +106,7 @@ const LineSalesReport: React.FC<Props> = ({ title, icon, filterLabel, loadOption
                 {rows.length === 0 && <tr><td colSpan={15} className="mst-empty">No records.</td></tr>}
                 {rows.map((row, i) => (
                   <tr key={`${row.billNo}-${i}`} className="mst-click-row" onClick={() => openBill(row.billNo)}>
-                    <td>{i + 1}</td>
+                    <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                     <td>{row.billNo}<div className="mst-note">{row.productName}</div></td>
                     <td>{row.customer}</td>
                     <td className="num">{n3(row.qty)}</td>
@@ -117,7 +125,7 @@ const LineSalesReport: React.FC<Props> = ({ title, icon, filterLabel, loadOption
                 ))}
                 {rows.length > 0 && (
                   <tr>
-                    <td colSpan={6}><strong>Grand Total</strong></td>
+                    <td colSpan={6}><strong>Page total</strong></td>
                     <td className="num"><strong>{n3(sum(rows, 'total'))}</strong></td>
                     <td className="num"><strong>{n3(sum(rows, 'paid'))}</strong></td>
                     <td className="num"><strong>{n3(sum(rows, 'balance'))}</strong></td>
@@ -128,6 +136,7 @@ const LineSalesReport: React.FC<Props> = ({ title, icon, filterLabel, loadOption
               </tbody>
             </table>
           </div>
+          <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={(p) => search(p)} />
         </div>
       )}
       {billModal}

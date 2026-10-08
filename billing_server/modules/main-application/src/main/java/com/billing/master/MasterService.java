@@ -19,6 +19,8 @@ import com.billing.master.dto.StockAdjustRequest;
 import com.billing.master.dto.StockProductData;
 import com.billing.master.dto.UnitData;
 import com.billing.master.dto.UnitSaveRequest;
+import com.billing.common.JdbcPageHelper;
+import com.billing.core.pagination.PageResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -65,18 +67,31 @@ public class MasterService {
     public MasterLookupsData lookups() {
         MasterLookupsData data = new MasterLookupsData();
         data.setHeadings(headings());
-        data.setCategories(categories());
-        data.setBrands(brands());
+        data.setCategories(categoriesAll());
+        data.setBrands(brandsAll());
         data.setUnits(activeUnits());
         data.setProducts(productOptions());
         return data;
     }
 
-    public List<NamedItemData> categories() {
+    public List<NamedItemData> categoriesAll() {
         return jdbcTemplate.query(
                 "SELECT id, NAME AS name FROM prod_category WHERE is_active = 1 ORDER BY NAME",
                 this::mapNamed
         );
+    }
+
+    public PageResult<NamedItemData> categories(int page, int size, String q) {
+        StringBuilder sql = new StringBuilder(
+                "SELECT id, NAME AS name FROM prod_category WHERE is_active = 1 "
+        );
+        List<Object> args = new ArrayList<>();
+        if (q != null && !q.isBlank()) {
+            sql.append("AND NAME LIKE ? ");
+            args.add("%" + q.trim() + "%");
+        }
+        sql.append("ORDER BY NAME");
+        return JdbcPageHelper.query(jdbcTemplate, sql.toString(), this::mapNamed, page, size, args.toArray());
     }
 
     @Transactional
@@ -97,11 +112,24 @@ public class MasterService {
         jdbcTemplate.update("UPDATE prod_category SET is_active = 0 WHERE id = ?", id);
     }
 
-    public List<NamedItemData> brands() {
+    public List<NamedItemData> brandsAll() {
         return jdbcTemplate.query(
                 "SELECT id, NAME AS name FROM prod_brands WHERE is_active = 1 ORDER BY NAME",
                 this::mapNamed
         );
+    }
+
+    public PageResult<NamedItemData> brands(int page, int size, String q) {
+        StringBuilder sql = new StringBuilder(
+                "SELECT id, NAME AS name FROM prod_brands WHERE is_active = 1 "
+        );
+        List<Object> args = new ArrayList<>();
+        if (q != null && !q.isBlank()) {
+            sql.append("AND NAME LIKE ? ");
+            args.add("%" + q.trim() + "%");
+        }
+        sql.append("ORDER BY NAME");
+        return JdbcPageHelper.query(jdbcTemplate, sql.toString(), this::mapNamed, page, size, args.toArray());
     }
 
     @Transactional
@@ -122,11 +150,17 @@ public class MasterService {
         jdbcTemplate.update("UPDATE prod_brands SET is_active = 0 WHERE id = ?", id);
     }
 
-    public List<UnitData> units() {
-        return jdbcTemplate.query(
-                "SELECT id, name, convertion_unit, convertion_calculation, is_active FROM prod_units ORDER BY name",
-                this::mapUnit
+    public PageResult<UnitData> units(int page, int size, String q) {
+        StringBuilder sql = new StringBuilder(
+                "SELECT id, name, convertion_unit, convertion_calculation, is_active FROM prod_units WHERE 1=1 "
         );
+        List<Object> args = new ArrayList<>();
+        if (q != null && !q.isBlank()) {
+            sql.append("AND name LIKE ? ");
+            args.add("%" + q.trim() + "%");
+        }
+        sql.append("ORDER BY name");
+        return JdbcPageHelper.query(jdbcTemplate, sql.toString(), this::mapUnit, page, size, args.toArray());
     }
 
     public List<UnitData> activeUnits() {
@@ -159,26 +193,48 @@ public class MasterService {
         jdbcTemplate.update("UPDATE prod_units SET is_active = ? WHERE id = ?", isActive, id);
     }
 
-    public List<CustomerMasterData> customers() {
+    public List<CustomerMasterData> customersAll() {
         return jdbcTemplate.query(
-                "SELECT id, name, " +
-                        "CASE WHEN address = '' OR address IS NULL THEN '-' ELSE address END AS address, " +
-                        "CASE WHEN phone_number = '' OR phone_number IS NULL THEN '-' ELSE phone_number END AS phone_number, " +
-                        "CASE WHEN gstin = '' OR gstin IS NULL THEN '-' ELSE gstin END AS gstin, " +
-                        "COALESCE(is_gst, 0) AS is_gst, COALESCE(is_eligible_for_commission, 0) AS is_eligible_for_commission " +
-                        "FROM customers WHERE is_active = 1 ORDER BY name",
-                (rs, i) -> {
-                    CustomerMasterData row = new CustomerMasterData();
-                    row.setId(rs.getLong("id"));
-                    row.setName(rs.getString("name"));
-                    row.setAddress(rs.getString("address"));
-                    row.setPhone(rs.getString("phone_number"));
-                    row.setGstin(rs.getString("gstin"));
-                    row.setIsGst(rs.getInt("is_gst"));
-                    row.setIsEligibleForCommission(rs.getInt("is_eligible_for_commission"));
-                    return row;
-                }
+                customerSelectSql() + " WHERE is_active = 1 ORDER BY name",
+                this::mapCustomer
         );
+    }
+
+    public PageResult<CustomerMasterData> customers(int page, int size, String q) {
+        StringBuilder sql = new StringBuilder(customerSelectSql());
+        List<Object> args = new ArrayList<>();
+        sql.append(" WHERE is_active = 1 ");
+        if (q != null && !q.isBlank()) {
+            sql.append("AND (name LIKE ? OR phone_number LIKE ? OR gstin LIKE ? OR address LIKE ?) ");
+            String like = "%" + q.trim() + "%";
+            args.add(like);
+            args.add(like);
+            args.add(like);
+            args.add(like);
+        }
+        sql.append("ORDER BY name");
+        return JdbcPageHelper.query(jdbcTemplate, sql.toString(), this::mapCustomer, page, size, args.toArray());
+    }
+
+    private String customerSelectSql() {
+        return "SELECT id, name, " +
+                "CASE WHEN address = '' OR address IS NULL THEN '-' ELSE address END AS address, " +
+                "CASE WHEN phone_number = '' OR phone_number IS NULL THEN '-' ELSE phone_number END AS phone_number, " +
+                "CASE WHEN gstin = '' OR gstin IS NULL THEN '-' ELSE gstin END AS gstin, " +
+                "COALESCE(is_gst, 0) AS is_gst, COALESCE(is_eligible_for_commission, 0) AS is_eligible_for_commission " +
+                "FROM customers";
+    }
+
+    private CustomerMasterData mapCustomer(java.sql.ResultSet rs, int i) throws java.sql.SQLException {
+        CustomerMasterData row = new CustomerMasterData();
+        row.setId(rs.getLong("id"));
+        row.setName(rs.getString("name"));
+        row.setAddress(rs.getString("address"));
+        row.setPhone(rs.getString("phone_number"));
+        row.setGstin(rs.getString("gstin"));
+        row.setIsGst(rs.getInt("is_gst"));
+        row.setIsEligibleForCommission(rs.getInt("is_eligible_for_commission"));
+        return row;
     }
 
     @Transactional
@@ -222,43 +278,54 @@ public class MasterService {
         jdbcTemplate.update("UPDATE customers SET is_active = 0 WHERE id = ?", id);
     }
 
-    public List<ProductMasterData> products() {
-        return jdbcTemplate.query(
-                "SELECT a.id, a.name, a.code, b.name AS category_name, c.name AS brand_name, d.mrp, " +
-                        "CASE WHEN d.disc_type = 1 THEN CONCAT(CAST(d.discount AS UNSIGNED), ' RS') " +
-                        "WHEN d.disc_type = 2 THEN CONCAT(CAST(d.discount AS UNSIGNED), ' %') ELSE 'No Discount' END AS discount_display, " +
-                        "d.stock, d.added_stock, d.cost, d.disc_type, d.discount, a.gst, a.unit_id, a.hsn, e.name AS unit_name, d.commission, " +
-                        "a.category_id, a.brand_id " +
-                        "FROM prod_product a " +
-                        "JOIN prod_category b ON a.category_id = b.id " +
-                        "JOIN prod_brands c ON a.brand_id = c.id " +
-                        "JOIN prod_batch d ON a.id = d.product_id " +
-                        "LEFT JOIN prod_units e ON a.unit_id = e.id " +
-                        "WHERE a.is_active = 1 ORDER BY CAST(SUBSTRING(a.code, 2) AS UNSIGNED)",
-                (rs, i) -> {
-                    ProductMasterData row = new ProductMasterData();
-                    row.setId(rs.getLong("id"));
-                    row.setName(rs.getString("name"));
-                    row.setCode(rs.getString("code"));
-                    row.setCategoryName(rs.getString("category_name"));
-                    row.setBrandName(rs.getString("brand_name"));
-                    row.setMrp(rs.getDouble("mrp"));
-                    row.setDiscountDisplay(rs.getString("discount_display"));
-                    row.setStock(rs.getDouble("stock"));
-                    row.setAddedStock(rs.getDouble("added_stock"));
-                    row.setCost(rs.getDouble("cost"));
-                    row.setDiscType(rs.getInt("disc_type"));
-                    row.setDiscount(rs.getDouble("discount"));
-                    row.setGst(rs.getInt("gst"));
-                    row.setUnitId(rs.getLong("unit_id"));
-                    row.setHsn(rs.getString("hsn"));
-                    row.setUnitName(rs.getString("unit_name"));
-                    row.setCommission(rs.getDouble("commission"));
-                    row.setCategoryId(rs.getLong("category_id"));
-                    row.setBrandId(rs.getLong("brand_id"));
-                    return row;
-                }
-        );
+    private static final String PRODUCT_LIST_SQL =
+            "SELECT a.id, a.name, a.code, b.name AS category_name, c.name AS brand_name, d.mrp, " +
+                    "CASE WHEN d.disc_type = 1 THEN CONCAT(CAST(d.discount AS UNSIGNED), ' RS') " +
+                    "WHEN d.disc_type = 2 THEN CONCAT(CAST(d.discount AS UNSIGNED), ' %') ELSE 'No Discount' END AS discount_display, " +
+                    "d.stock, d.added_stock, d.cost, d.disc_type, d.discount, a.gst, a.unit_id, a.hsn, e.name AS unit_name, d.commission, " +
+                    "a.category_id, a.brand_id " +
+                    "FROM prod_product a " +
+                    "JOIN prod_category b ON a.category_id = b.id " +
+                    "JOIN prod_brands c ON a.brand_id = c.id " +
+                    "JOIN prod_batch d ON a.id = d.product_id " +
+                    "LEFT JOIN prod_units e ON a.unit_id = e.id " +
+                    "WHERE a.is_active = 1 ";
+
+    public PageResult<ProductMasterData> products(int page, int size, String q) {
+        StringBuilder sql = new StringBuilder(PRODUCT_LIST_SQL);
+        List<Object> args = new ArrayList<>();
+        if (q != null && !q.isBlank()) {
+            sql.append("AND (a.name LIKE ? OR a.code LIKE ?) ");
+            String like = "%" + q.trim() + "%";
+            args.add(like);
+            args.add(like);
+        }
+        sql.append("ORDER BY CAST(SUBSTRING(a.code, 2) AS UNSIGNED)");
+        return JdbcPageHelper.query(jdbcTemplate, sql.toString(), this::mapProductMaster, page, size, args.toArray());
+    }
+
+    private ProductMasterData mapProductMaster(java.sql.ResultSet rs, int i) throws java.sql.SQLException {
+        ProductMasterData row = new ProductMasterData();
+        row.setId(rs.getLong("id"));
+        row.setName(rs.getString("name"));
+        row.setCode(rs.getString("code"));
+        row.setCategoryName(rs.getString("category_name"));
+        row.setBrandName(rs.getString("brand_name"));
+        row.setMrp(rs.getDouble("mrp"));
+        row.setDiscountDisplay(rs.getString("discount_display"));
+        row.setStock(rs.getDouble("stock"));
+        row.setAddedStock(rs.getDouble("added_stock"));
+        row.setCost(rs.getDouble("cost"));
+        row.setDiscType(rs.getInt("disc_type"));
+        row.setDiscount(rs.getDouble("discount"));
+        row.setGst(rs.getInt("gst"));
+        row.setUnitId(rs.getLong("unit_id"));
+        row.setHsn(rs.getString("hsn"));
+        row.setUnitName(rs.getString("unit_name"));
+        row.setCommission(rs.getDouble("commission"));
+        row.setCategoryId(rs.getLong("category_id"));
+        row.setBrandId(rs.getLong("brand_id"));
+        return row;
     }
 
     public List<ProductOptionData> productOptions() {
@@ -375,8 +442,8 @@ public class MasterService {
         jdbcTemplate.update("UPDATE prod_product SET is_active = 0 WHERE id = ?", id);
     }
 
-    public List<StockProductData> stockProducts() {
-        return jdbcTemplate.query(
+    public PageResult<StockProductData> stockProducts(int page, int size, String q) {
+        StringBuilder sql = new StringBuilder(
                 "SELECT a.id, a.name, a.code, b.name AS category_name, c.name AS brand_name, d.stock, d.id AS batch_id, " +
                         "IFNULL(e.name, '') AS unit_name, IFNULL(e.convertion_unit, '') AS convertion_unit, " +
                         "IFNULL(e.convertion_calculation, 0) AS convertion_calculation " +
@@ -385,22 +452,32 @@ public class MasterService {
                         "JOIN prod_brands c ON a.brand_id = c.id " +
                         "JOIN prod_batch d ON a.id = d.product_id " +
                         "LEFT JOIN prod_units e ON a.unit_id = e.id " +
-                        "WHERE a.is_active = 1 ORDER BY a.name",
-                (rs, i) -> {
-                    StockProductData row = new StockProductData();
-                    row.setId(rs.getLong("id"));
-                    row.setName(rs.getString("name"));
-                    row.setCode(rs.getString("code"));
-                    row.setCategoryName(rs.getString("category_name"));
-                    row.setBrandName(rs.getString("brand_name"));
-                    row.setStock(rs.getDouble("stock"));
-                    row.setBatchId(rs.getLong("batch_id"));
-                    row.setUnitName(rs.getString("unit_name"));
-                    row.setConvertionUnit(rs.getString("convertion_unit"));
-                    row.setConvertionCalculation(rs.getDouble("convertion_calculation"));
-                    return row;
-                }
+                        "WHERE a.is_active = 1 "
         );
+        List<Object> args = new ArrayList<>();
+        if (q != null && !q.isBlank()) {
+            sql.append("AND (a.name LIKE ? OR a.code LIKE ?) ");
+            String like = "%" + q.trim() + "%";
+            args.add(like);
+            args.add(like);
+        }
+        sql.append("ORDER BY a.name");
+        return JdbcPageHelper.query(jdbcTemplate, sql.toString(), this::mapStockProduct, page, size, args.toArray());
+    }
+
+    private StockProductData mapStockProduct(java.sql.ResultSet rs, int i) throws java.sql.SQLException {
+        StockProductData row = new StockProductData();
+        row.setId(rs.getLong("id"));
+        row.setName(rs.getString("name"));
+        row.setCode(rs.getString("code"));
+        row.setCategoryName(rs.getString("category_name"));
+        row.setBrandName(rs.getString("brand_name"));
+        row.setStock(rs.getDouble("stock"));
+        row.setBatchId(rs.getLong("batch_id"));
+        row.setUnitName(rs.getString("unit_name"));
+        row.setConvertionUnit(rs.getString("convertion_unit"));
+        row.setConvertionCalculation(rs.getDouble("convertion_calculation"));
+        return row;
     }
 
     @Transactional
@@ -519,17 +596,23 @@ public class MasterService {
         jdbcTemplate.update("DELETE FROM prod_product_components WHERE id = ?", id);
     }
 
-    public List<CafeTableData> cafeTables() {
-        return jdbcTemplate.query(
-                "SELECT id, name, is_occupied FROM order_tables ORDER BY name",
-                (rs, i) -> {
-                    CafeTableData row = new CafeTableData();
-                    row.setId(rs.getLong("id"));
-                    row.setName(rs.getString("name"));
-                    row.setIsOccupied(rs.getInt("is_occupied"));
-                    return row;
-                }
-        );
+    public PageResult<CafeTableData> cafeTables(int page, int size, String q) {
+        StringBuilder sql = new StringBuilder("SELECT id, name, is_occupied FROM order_tables WHERE 1=1 ");
+        List<Object> args = new ArrayList<>();
+        if (q != null && !q.isBlank()) {
+            sql.append("AND name LIKE ? ");
+            args.add("%" + q.trim() + "%");
+        }
+        sql.append("ORDER BY name");
+        return JdbcPageHelper.query(jdbcTemplate, sql.toString(), this::mapCafeTable, page, size, args.toArray());
+    }
+
+    private CafeTableData mapCafeTable(java.sql.ResultSet rs, int i) throws java.sql.SQLException {
+        CafeTableData row = new CafeTableData();
+        row.setId(rs.getLong("id"));
+        row.setName(rs.getString("name"));
+        row.setIsOccupied(rs.getInt("is_occupied"));
+        return row;
     }
 
     @Transactional
@@ -547,7 +630,7 @@ public class MasterService {
         jdbcTemplate.update("DELETE FROM order_tables WHERE id = ?", id);
     }
 
-    public List<BulkProductData> bulkProducts(String name, Long categoryId) {
+    public PageResult<BulkProductData> bulkProducts(String name, Long categoryId, int page, int size) {
         StringBuilder sql = new StringBuilder(
                 "SELECT p.id, p.name, p.code, p.gst, c.name AS category_name, b.mrp, b.id AS batch_id, b.cost, br.name AS brand_name " +
                         "FROM prod_product p " +
@@ -566,19 +649,21 @@ public class MasterService {
             args.add(categoryId);
         }
         sql.append("ORDER BY p.name");
-        return jdbcTemplate.query(sql.toString(), (rs, i) -> {
-            BulkProductData row = new BulkProductData();
-            row.setId(rs.getLong("id"));
-            row.setName(rs.getString("name"));
-            row.setCode(rs.getString("code"));
-            row.setGst(rs.getInt("gst"));
-            row.setCategoryName(rs.getString("category_name"));
-            row.setMrp(rs.getDouble("mrp"));
-            row.setBatchId(rs.getLong("batch_id"));
-            row.setCost(rs.getDouble("cost"));
-            row.setBrandName(rs.getString("brand_name"));
-            return row;
-        }, args.toArray());
+        return JdbcPageHelper.query(jdbcTemplate, sql.toString(), this::mapBulkProduct, page, size, args.toArray());
+    }
+
+    private BulkProductData mapBulkProduct(java.sql.ResultSet rs, int i) throws java.sql.SQLException {
+        BulkProductData row = new BulkProductData();
+        row.setId(rs.getLong("id"));
+        row.setName(rs.getString("name"));
+        row.setCode(rs.getString("code"));
+        row.setGst(rs.getInt("gst"));
+        row.setCategoryName(rs.getString("category_name"));
+        row.setMrp(rs.getDouble("mrp"));
+        row.setBatchId(rs.getLong("batch_id"));
+        row.setCost(rs.getDouble("cost"));
+        row.setBrandName(rs.getString("brand_name"));
+        return row;
     }
 
     @Transactional
@@ -604,25 +689,33 @@ public class MasterService {
         return updated;
     }
 
-    public List<BarcodeItemData> barcodes() {
-        return jdbcTemplate.query(
+    public PageResult<BarcodeItemData> barcodes(int page, int size, String q) {
+        StringBuilder sql = new StringBuilder(
                 "SELECT p.id, p.name, p.code, COALESCE(MAX(b.mrp), 0) AS mrp, COALESCE(u.name, 'N/A') AS unit " +
                         "FROM prod_product p " +
                         "LEFT JOIN prod_batch b ON p.id = b.product_id " +
                         "LEFT JOIN prod_units u ON p.unit_id = u.id " +
-                        "WHERE p.is_active = 1 " +
-                        "GROUP BY p.id, p.name, p.code, u.name " +
-                        "ORDER BY p.name",
-                (rs, i) -> {
-                    BarcodeItemData row = new BarcodeItemData();
-                    row.setId(rs.getLong("id"));
-                    row.setName(rs.getString("name"));
-                    row.setCode(rs.getString("code"));
-                    row.setMrp(rs.getDouble("mrp"));
-                    row.setUnit(rs.getString("unit"));
-                    return row;
-                }
+                        "WHERE p.is_active = 1 "
         );
+        List<Object> args = new ArrayList<>();
+        if (q != null && !q.isBlank()) {
+            sql.append("AND (p.name LIKE ? OR p.code LIKE ?) ");
+            String like = "%" + q.trim() + "%";
+            args.add(like);
+            args.add(like);
+        }
+        sql.append("GROUP BY p.id, p.name, p.code, u.name ORDER BY p.name");
+        return JdbcPageHelper.query(jdbcTemplate, sql.toString(), this::mapBarcode, page, size, args.toArray());
+    }
+
+    private BarcodeItemData mapBarcode(java.sql.ResultSet rs, int i) throws java.sql.SQLException {
+        BarcodeItemData row = new BarcodeItemData();
+        row.setId(rs.getLong("id"));
+        row.setName(rs.getString("name"));
+        row.setCode(rs.getString("code"));
+        row.setMrp(rs.getDouble("mrp"));
+        row.setUnit(rs.getString("unit"));
+        return row;
     }
 
     private void archiveBatch(Long productId, Long uid) {

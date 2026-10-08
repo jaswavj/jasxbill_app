@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { stockApi, stockData, stockError } from '../../../api/stock-reports/stock-report-api-service';
+import { stockApi, stockData, stockError, stockPage } from '../../../api/stock-reports/stock-report-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import '../master/Master.css';
 import '../statistics/Stats.css';
 import ReportActions from '../account-reports/ReportActions';
@@ -16,14 +17,21 @@ const ProductTransactionPage: React.FC = () => {
   const [productId, setProductId] = useState('0');
   const [products, setProducts] = useState<Prod[]>([]);
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     stockApi.products().then((res) => setProducts(stockData<Prod[]>(res) || [])).catch(() => undefined);
   }, []);
 
-  const search = async () => {
+  const search = async (p = 0) => {
     try {
-      setRows(stockData<Row[]>(await stockApi.transactions(from, to, productId === '0' ? undefined : Number(productId))) || []);
+      const pg = stockPage<Row>(await stockApi.transactions(
+        from, to, productId === '0' ? undefined : Number(productId), p, DEFAULT_PAGE_SIZE,
+      ));
+      setRows(pg.items);
+      setTotal(pg.total);
+      setPage(p);
     } catch (err) {
       toast.error(stockError(err, 'Could not load report'));
     }
@@ -44,7 +52,7 @@ const ProductTransactionPage: React.FC = () => {
             </select>
           </div>
           <div className="mst-actions">
-            <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button>
+            <button className="mst-btn mst-btn-primary" type="button" onClick={() => search(0)}>Generate Report</button>
             <ReportActions
               disabled={!rows}
               filename={`Product_Transaction_${from}_${to}`}
@@ -77,7 +85,7 @@ const ProductTransactionPage: React.FC = () => {
                 {rows.length === 0 && <tr><td colSpan={9} className="mst-empty">No transactions.</td></tr>}
                 {rows.map((row, i) => (
                   <tr key={`${row.dateTime}-${i}`}>
-                    <td>{i + 1}</td>
+                    <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                     <td>{row.productName}</td>
                     <td className={`num ${row.stockIn > 0 ? 'st-in' : ''}`}>{row.stockIn} {row.unit}</td>
                     <td className={`num ${row.stockOut > 0 ? 'st-out' : ''}`}>{row.stockOut} {row.unit}</td>
@@ -91,6 +99,7 @@ const ProductTransactionPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={(p) => search(p)} />
         </div>
       )}
     </div>

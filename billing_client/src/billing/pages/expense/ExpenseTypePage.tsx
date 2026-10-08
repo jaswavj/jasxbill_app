@@ -1,29 +1,38 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { expenseApi, expenseData, expenseError } from '../../../api/expense/expense-api-service';
+import { expenseApi, expenseError, expensePage } from '../../../api/expense/expense-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import '../master/Master.css';
 
 type Row = { id: number; name: string };
 
 const ExpenseTypePage: React.FC = () => {
   const [rows, setRows] = useState<Row[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [name, setName] = useState('');
   const [editId, setEditId] = useState(0);
   const [blockIt, setBlockIt] = useState(false);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const refresh = async () => {
+  const refresh = async (p = page) => {
     try {
-      setRows(expenseData<Row[]>(await expenseApi.types()) || []);
+      const pg = expensePage<Row>(await expenseApi.types(p, DEFAULT_PAGE_SIZE));
+      setRows(pg.items);
+      setTotal(pg.total);
     } catch (err) {
       toast.error(expenseError(err, 'Could not load expense types'));
     }
   };
 
   useEffect(() => {
-    refresh();
-  }, []);
+    setPage(0);
+  }, [search]);
+
+  useEffect(() => {
+    refresh(page);
+  }, [page, search]);
 
   const reset = () => {
     setName('');
@@ -103,7 +112,7 @@ const ExpenseTypePage: React.FC = () => {
                 {filtered.length === 0 && <tr><td colSpan={3} className="mst-empty">No expense types found. Add your first expense type.</td></tr>}
                 {filtered.map((row, i) => (
                   <tr key={row.id}>
-                    <td>{i + 1}</td>
+                    <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                     <td>{row.name}</td>
                     <td>
                       <button className="mst-icon-btn" type="button" title="Edit" onClick={() => { setEditId(row.id); setName(row.name); setBlockIt(false); }}>
@@ -115,6 +124,7 @@ const ExpenseTypePage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={(p) => setPage(p)} />
         </div>
       </div>
     </div>

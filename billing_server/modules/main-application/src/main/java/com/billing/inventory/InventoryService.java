@@ -16,6 +16,8 @@ import com.billing.inventory.dto.SavePurchaseReturnRequest;
 import com.billing.inventory.dto.SupplierData;
 import com.billing.inventory.dto.SupplierPaymentRow;
 import com.billing.inventory.dto.SupplierSaveRequest;
+import com.billing.common.JdbcPageHelper;
+import com.billing.core.pagination.PageResult;
 import com.billing.master.dto.NamedItemData;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -39,16 +41,33 @@ public class InventoryService {
 
     private final JdbcTemplate jdbcTemplate;
 
-    public List<SupplierData> suppliers() {
+    public List<SupplierData> suppliersAll() {
         return jdbcTemplate.query(
-                "SELECT id, NAME AS name, " +
-                        "CASE WHEN description = '' OR description IS NULL THEN '-' ELSE description END AS description, " +
-                        "CASE WHEN phone_number = '' OR phone_number IS NULL THEN '-' ELSE phone_number END AS phone_number, " +
-                        "CASE WHEN gstin = '' OR gstin IS NULL THEN '-' ELSE gstin END AS gstin, " +
-                        "COALESCE(is_gst, 0) AS is_gst " +
-                        "FROM prod_supplier WHERE is_active = 1 ORDER BY NAME",
+                supplierSelectSql() + " WHERE is_active = 1 ORDER BY NAME",
                 this::mapSupplier
         );
+    }
+
+    public PageResult<SupplierData> suppliers(int page, int size, String q) {
+        StringBuilder sql = new StringBuilder(supplierSelectSql() + " WHERE is_active = 1 ");
+        List<Object> args = new ArrayList<>();
+        if (q != null && !q.isBlank()) {
+            sql.append("AND (NAME LIKE ? OR phone_number LIKE ? OR gstin LIKE ?) ");
+            String like = "%" + q.trim() + "%";
+            args.add(like);
+            args.add(like);
+            args.add(like);
+        }
+        sql.append("ORDER BY NAME");
+        return JdbcPageHelper.query(jdbcTemplate, sql.toString(), this::mapSupplier, page, size, args.toArray());
+    }
+
+    private String supplierSelectSql() {
+        return "SELECT id, NAME AS name, " +
+                "CASE WHEN description = '' OR description IS NULL THEN '-' ELSE description END AS description, " +
+                "CASE WHEN phone_number = '' OR phone_number IS NULL THEN '-' ELSE phone_number END AS phone_number, " +
+                "CASE WHEN gstin = '' OR gstin IS NULL THEN '-' ELSE gstin END AS gstin, " +
+                "COALESCE(is_gst, 0) AS is_gst FROM prod_supplier";
     }
 
     @Transactional
@@ -92,7 +111,7 @@ public class InventoryService {
 
     public PurchaseLookupsData lookups() {
         PurchaseLookupsData data = new PurchaseLookupsData();
-        data.setSuppliers(suppliers());
+        data.setSuppliers(suppliersAll());
         data.setPaymentTypes(jdbcTemplate.query(
                 "SELECT id, NAME AS name FROM configure_payment_type WHERE is_blocked = 0",
                 this::mapNamed

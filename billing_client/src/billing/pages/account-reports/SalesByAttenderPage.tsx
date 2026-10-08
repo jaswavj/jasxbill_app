@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { accountApi, accountData, accountError } from '../../../api/account-reports/account-report-api-service';
 import { usersApi, usersData } from '../../../api/users/users-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE, normalizePage } from '../../components/ListPagination';
 import '../master/Master.css';
 import { n3, sum, today } from './reportHelpers';
 import { useBillDetail } from './BillDetailModal';
@@ -19,6 +20,8 @@ const SalesByAttenderPage: React.FC = () => {
   const [attenderId, setAttenderId] = useState('0');
   const [attenders, setAttenders] = useState<Opt[]>([]);
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const { openBill, billModal } = useBillDetail();
 
   useEffect(() => {
@@ -27,9 +30,14 @@ const SalesByAttenderPage: React.FC = () => {
       .catch(() => undefined);
   }, []);
 
-  const search = async () => {
+  const search = async (p = 0) => {
     try {
-      setRows(accountData<Row[]>(await accountApi.salesByAttender(from, to, Number(attenderId))) || []);
+      const pg = normalizePage(accountData<Row[] | ReturnType<typeof normalizePage<Row>>>(
+        await accountApi.salesByAttender(from, to, Number(attenderId), p, DEFAULT_PAGE_SIZE),
+      ));
+      setRows(pg.items);
+      setTotal(pg.total);
+      setPage(p);
     } catch (err) {
       toast.error(accountError(err, 'Could not load report'));
     }
@@ -50,7 +58,7 @@ const SalesByAttenderPage: React.FC = () => {
             </select>
           </div>
           <div className="mst-actions">
-            <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate Report</button>
+            <button className="mst-btn mst-btn-primary" type="button" onClick={() => search(0)}>Generate Report</button>
             <ReportActions
               disabled={!rows}
               filename={`Sales_by_Attender_${from}_${to}`}
@@ -85,7 +93,7 @@ const SalesByAttenderPage: React.FC = () => {
                 {rows.length === 0 && <tr><td colSpan={11} className="mst-empty">No records.</td></tr>}
                 {rows.map((row, i) => (
                   <tr key={`${row.billNo}-${i}`} className="mst-click-row" onClick={() => openBill(row.billNo)}>
-                    <td>{i + 1}</td>
+                    <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                     <td>{row.billNo}</td>
                     <td>{row.customer}</td>
                     <td>{row.attender}</td>
@@ -100,7 +108,7 @@ const SalesByAttenderPage: React.FC = () => {
                 ))}
                 {rows.length > 0 && (
                   <tr>
-                    <td colSpan={4}><strong>Grand Total</strong></td>
+                    <td colSpan={4}><strong>Page total</strong></td>
                     <td className="num"><strong>{n3(sum(rows, 'total'))}</strong></td>
                     <td className="num"><strong>{n3(sum(rows, 'discount'))}</strong></td>
                     <td className="num"><strong>{n3(sum(rows, 'payable'))}</strong></td>
@@ -112,6 +120,7 @@ const SalesByAttenderPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={(p) => search(p)} />
         </div>
       )}
       {billModal}

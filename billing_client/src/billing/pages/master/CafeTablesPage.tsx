@@ -1,28 +1,37 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { masterApi, masterData, masterError } from '../../../api/master/master-api-service';
+import { masterApi, masterError, masterPage } from '../../../api/master/master-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import './Master.css';
 
 type TableRow = { id: number; name: string; isOccupied: number };
 
 const CafeTablesPage: React.FC = () => {
   const [rows, setRows] = useState<TableRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [name, setName] = useState('');
   const [editId, setEditId] = useState(0);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const refresh = async () => {
+  const refresh = async (p = page) => {
     try {
-      setRows(masterData<TableRow[]>(await masterApi.tables()) || []);
+      const pg = masterPage<TableRow>(await masterApi.tables(p, DEFAULT_PAGE_SIZE, search.trim() || undefined));
+      setRows(pg.items);
+      setTotal(pg.total);
     } catch (err) {
       toast.error(masterError(err, 'Could not load tables'));
     }
   };
 
   useEffect(() => {
-    refresh();
-  }, []);
+    setPage(0);
+  }, [search]);
+
+  useEffect(() => {
+    refresh(page);
+  }, [page, search]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,8 +63,6 @@ const CafeTablesPage: React.FC = () => {
       toast.error(masterError(err, 'Delete failed'));
     }
   };
-
-  const filtered = rows.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="mst-page">
@@ -101,9 +108,9 @@ const CafeTablesPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((row, i) => (
+                {rows.map((row, i) => (
                   <tr key={row.id}>
-                    <td>{i + 1}</td>
+                    <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                     <td>{row.name}</td>
                     <td>
                       <span className={`mst-badge ${row.isOccupied === 1 ? 'off' : 'on'}`}>
@@ -123,6 +130,7 @@ const CafeTablesPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={setPage} />
         </div>
       </div>
     </div>

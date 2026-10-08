@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { expenseApi, expenseData, expenseError } from '../../../api/expense/expense-api-service';
+import { expenseApi, expenseData, expenseError, expensePage } from '../../../api/expense/expense-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import '../master/Master.css';
 import '../credit/Credit.css';
 import ReportActions from '../account-reports/ReportActions';
@@ -17,20 +18,27 @@ const ExpenseReportPage: React.FC = () => {
   const [to, setTo] = useState(today());
   const [typeId, setTypeId] = useState('0');
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     expenseApi.types().then((res) => setTypes(expenseData<TypeRow[]>(res) || [])).catch(() => undefined);
   }, []);
 
-  const search = async () => {
+  const search = async (p = 0) => {
     try {
-      setRows(expenseData<Row[]>(await expenseApi.report(from, to, typeId === '0' ? undefined : Number(typeId))) || []);
+      const pg = expensePage<Row>(await expenseApi.report(
+        from, to, typeId === '0' ? undefined : Number(typeId), p, DEFAULT_PAGE_SIZE,
+      ));
+      setRows(pg.items);
+      setTotal(pg.total);
+      setPage(p);
     } catch (err) {
       toast.error(expenseError(err, 'Could not load report'));
     }
   };
 
-  const total = (rows || []).reduce((sum, row) => sum + (row.amount || 0), 0);
+  const pageTotal = (rows || []).reduce((sum, row) => sum + (row.amount || 0), 0);
   const typeName = typeId === '0' ? 'All Types' : (types.find((t) => String(t.id) === typeId)?.name || 'All Types');
 
   return (
@@ -48,7 +56,7 @@ const ExpenseReportPage: React.FC = () => {
             </select>
           </div>
           <div className="mst-actions">
-            <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate</button>
+            <button className="mst-btn mst-btn-primary" type="button" onClick={() => search(0)}>Generate</button>
             <ReportActions
               disabled={!rows}
               filename={`Expense_Report_${from}_${to}`}
@@ -70,11 +78,11 @@ const ExpenseReportPage: React.FC = () => {
           <div className="crd-stats" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 12 }}>
             <div className="mst-card crd-stat">
               <div className="crd-stat-l">Total Entries</div>
-              <div className="crd-stat-v">{rows.length}</div>
+              <div className="crd-stat-v">{total}</div>
             </div>
             <div className="mst-card crd-stat">
               <div className="crd-stat-l">Total Expense Amount</div>
-              <div className="crd-stat-v due">₹ {n(total)}</div>
+              <div className="crd-stat-v due">₹ {n(pageTotal)}</div>
             </div>
             <div className="mst-card crd-stat">
               <div className="crd-stat-l">Expense Type</div>
@@ -99,7 +107,7 @@ const ExpenseReportPage: React.FC = () => {
                   {rows.length === 0 && <tr><td colSpan={7} className="mst-empty">No expense entries found for the selected period.</td></tr>}
                   {rows.map((row, i) => (
                     <tr key={row.id}>
-                      <td>{i + 1}</td>
+                      <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                       <td>{row.dateTime}</td>
                       <td>{row.typeName}</td>
                       <td>{row.content}</td>
@@ -110,14 +118,15 @@ const ExpenseReportPage: React.FC = () => {
                   ))}
                   {rows.length > 0 && (
                     <tr>
-                      <td colSpan={5}><strong>Grand Total</strong></td>
-                      <td className="num"><strong>₹ {n(total)}</strong></td>
+                      <td colSpan={5}><strong>Page total</strong></td>
+                      <td className="num"><strong>₹ {n(pageTotal)}</strong></td>
                       <td />
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
+            <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={(p) => search(p)} />
           </div>
         </>
       )}

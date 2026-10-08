@@ -13,6 +13,7 @@ type Product = {
   cost: number;
   mrp: number;
   gst: number;
+  unitName?: string;
   convertionUnit?: string;
   convertionCalculation?: number;
 };
@@ -27,6 +28,8 @@ type Line = {
   disc: string;
   tax: string;
   convertionCalc: number;
+  convertionUnit?: string;
+  unitName?: string;
 };
 type Hist = {
   supplierName: string;
@@ -43,6 +46,47 @@ type Hist = {
 const today = () => new Date().toISOString().slice(0, 10);
 const n = (v: string | number) => Number(v) || 0;
 const money = (v: number) => (Number.isFinite(v) ? v.toFixed(3) : '0.000');
+
+const productConvFactor = (p: Product) => {
+  if (!p.convertionUnit?.trim()) return 0;
+  const f = Number(p.convertionCalculation);
+  return Number.isFinite(f) && f > 0 ? f : 0;
+};
+
+/** Batch stores cost/mrp per conversion unit; purchase entry uses base unit (same as product master). */
+const storedToBaseAmount = (stored: number, factor: number) =>
+  (factor ? Number((stored * factor).toFixed(4)) : stored);
+
+const formAmountText = (n: number) => {
+  if (!Number.isFinite(n)) return '';
+  if (Number.isInteger(n)) return String(n);
+  return n.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+};
+
+const convHint = (factor: number, convUnit: string, baseVal: string) => {
+  if (!factor || !convUnit) return null;
+  const n = Number(baseVal);
+  if (!Number.isFinite(n)) return null;
+  const per = n / factor;
+  const text = Number.isInteger(per) ? String(per) : per.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+  return <span className="mst-conv-hint">{text} / {convUnit}</span>;
+};
+
+const lineConvFactor = (line: Line) => {
+  if (!line.convertionUnit?.trim()) return 0;
+  const f = Number(line.convertionCalc);
+  return Number.isFinite(f) && f > 0 ? f : 0;
+};
+
+const stockInsertHint = (line: Line) => {
+  const factor = lineConvFactor(line);
+  const unit = line.convertionUnit?.trim() || '';
+  if (!factor || !unit) return null;
+  const stock = (n(line.qty) + n(line.free)) * factor;
+  if (!Number.isFinite(stock)) return null;
+  const text = Number.isInteger(stock) ? String(stock) : stock.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+  return <span className="mst-conv-hint">{text} {unit} to stock</span>;
+};
 
 const calcLine = (line: Line) => {
   const tot = n(line.qty);
@@ -115,9 +159,11 @@ const PurchasePage: React.FC = () => {
   }, [pending]);
 
   const openAdd = (product: Product) => {
+    const factor = productConvFactor(product);
+    const baseCost = storedToBaseAmount(Number(product.cost ?? 0), factor);
     setPending(product);
     setAddQty('1');
-    setAddCost(String(product.cost ?? 0));
+    setAddCost(formAmountText(baseCost));
     setSearch('');
     setHits([]);
   };
@@ -132,6 +178,8 @@ const PurchasePage: React.FC = () => {
       toast.warning('Enter cost');
       return;
     }
+    const factor = productConvFactor(pending);
+    const baseMrp = storedToBaseAmount(Number(pending.mrp ?? 0), factor);
     setLines((prev) => [
       ...prev,
       {
@@ -141,10 +189,12 @@ const PurchasePage: React.FC = () => {
         qty: addQty,
         free: '0',
         cost: String(n(addCost)),
-        mrp: String(pending.mrp ?? 0),
+        mrp: formAmountText(baseMrp) || String(baseMrp),
         disc: '0',
         tax: String(pending.gst ?? 0),
         convertionCalc: pending.convertionCalculation || 1,
+        convertionUnit: pending.convertionUnit,
+        unitName: pending.unitName,
       },
     ]);
     setKey((k) => k + 1);
@@ -353,56 +403,69 @@ const PurchasePage: React.FC = () => {
           </div>
         </div>
       </div>
-      {pending && (
+      {pending && (() => {
+        const factor = productConvFactor(pending);
+        const convUnit = pending.convertionUnit?.trim() || '';
+        const baseMrp = formAmountText(storedToBaseAmount(Number(pending.mrp ?? 0), factor));
+        const qtyLabel = pending.unitName ? `Qty (${pending.unitName})` : 'Qty';
+        return (
         <div className="pos-modal-back" onClick={() => setPending(null)}>
-          <div className="pos-modal pos-save-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="pos-modal-head">
+          <div className="pos-modal pos-save-modal pos-purchase-add-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pos-save-head">
               <h4>Add Item</h4>
               <button className="pos-btn pos-btn-outline" type="button" onClick={() => setPending(null)}>Close</button>
             </div>
-            <div className="mst-note" style={{ marginBottom: 12 }}>
-              {pending.code ? `${pending.code} — ` : ''}{pending.name}
-            </div>
-            <div className="pos-row" style={{ marginBottom: 12 }}>
-              <div className="pos-fg" style={{ minWidth: 120 }}>
-                <span className="pos-lbl">Qty</span>
-                <input
-                  ref={qtyRef}
-                  className="pos-inp pos-inp-lg"
-                  type="number"
-                  min="0.001"
-                  step="0.001"
-                  value={addQty}
-                  onChange={(e) => setAddQty(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && confirmAdd()}
-                />
+            <div className="pos-save-body">
+              <p className="mst-note" style={{ margin: 0 }}>
+                {pending.code ? `${pending.code} — ` : ''}{pending.name}
+                {factor > 0 && convUnit ? (
+                  <span>{` · 1 ${pending.unitName || 'unit'} = ${factor} ${convUnit}`}</span>
+                ) : null}
+              </p>
+              <div className="pos-row">
+                <div className="pos-fg" style={{ minWidth: 120, flex: 1 }}>
+                  <span className="pos-lbl">{qtyLabel}</span>
+                  <input
+                    ref={qtyRef}
+                    className="pos-inp pos-inp-lg"
+                    type="number"
+                    min="0.001"
+                    step="0.001"
+                    value={addQty}
+                    onChange={(e) => setAddQty(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && confirmAdd()}
+                  />
+                </div>
+                <div className="pos-fg" style={{ minWidth: 140, flex: 1 }}>
+                  <span className="pos-lbl">Cost{pending.unitName ? ` (${pending.unitName})` : ''}</span>
+                  <input
+                    className="pos-inp pos-inp-lg"
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    value={addCost}
+                    onChange={(e) => setAddCost(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && confirmAdd()}
+                  />
+                  {convHint(factor, convUnit, addCost)}
+                </div>
+                <div className="pos-fg" style={{ minWidth: 140, flex: 1 }}>
+                  <span className="pos-lbl">MRP{pending.unitName ? ` (${pending.unitName})` : ''}</span>
+                  <input className="pos-inp" readOnly value={baseMrp} />
+                  {convHint(factor, convUnit, baseMrp)}
+                </div>
               </div>
-              <div className="pos-fg" style={{ minWidth: 140 }}>
-                <span className="pos-lbl">Cost</span>
-                <input
-                  className="pos-inp pos-inp-lg"
-                  type="number"
-                  min="0"
-                  step="0.001"
-                  value={addCost}
-                  onChange={(e) => setAddCost(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && confirmAdd()}
-                />
+              <div className="pos-acts" style={{ marginTop: 4 }}>
+                <button className="pos-btn" type="button" onClick={confirmAdd}>
+                  <i className="fas fa-plus" /> ADD
+                </button>
+                <button className="pos-btn pos-btn-outline" type="button" onClick={() => setPending(null)}>Cancel</button>
               </div>
-              <div className="pos-fg" style={{ minWidth: 140 }}>
-                <span className="pos-lbl">MRP</span>
-                <input className="pos-inp" readOnly value={money(n(pending.mrp))} />
-              </div>
-            </div>
-            <div className="pos-acts">
-              <button className="pos-btn" type="button" onClick={confirmAdd}>
-                <i className="fas fa-plus" /> ADD
-              </button>
-              <button className="pos-btn pos-btn-outline" type="button" onClick={() => setPending(null)}>Cancel</button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
       <div className="mst-table-wrap" style={{ flex: 1, margin: '6px 10px', background: 'var(--color-bg-surface)', borderRadius: 7 }}>
         <table className="mst-table mst-table-wide">
           <thead>
@@ -429,6 +492,8 @@ const PurchasePage: React.FC = () => {
             )}
             {lines.map((line) => {
               const c = calcLine(line);
+              const factor = lineConvFactor(line);
+              const convUnit = line.convertionUnit?.trim() || '';
               return (
                 <tr key={line.key}>
                   <td>
@@ -437,9 +502,18 @@ const PurchasePage: React.FC = () => {
                     </button>
                   </td>
                   <td>{line.name}</td>
-                  <td><input className="mst-inp" type="number" min="0" step="0.001" value={line.qty} onChange={(e) => patch(line.key, 'qty', e.target.value)} /></td>
-                  <td><input className="mst-inp" type="number" step="0.001" value={line.cost} onChange={(e) => patch(line.key, 'cost', e.target.value)} /></td>
-                  <td><input className="mst-inp" type="number" step="0.001" value={line.mrp} onChange={(e) => patch(line.key, 'mrp', e.target.value)} /></td>
+                  <td className="num purchase-line-edit">
+                    <input className="mst-inp" type="number" min="0" step="0.001" value={line.qty} onChange={(e) => patch(line.key, 'qty', e.target.value)} />
+                    {stockInsertHint(line)}
+                  </td>
+                  <td className="num purchase-line-edit">
+                    <input className="mst-inp" type="number" step="0.001" value={line.cost} onChange={(e) => patch(line.key, 'cost', e.target.value)} />
+                    {convHint(factor, convUnit, line.cost)}
+                  </td>
+                  <td className="num purchase-line-edit">
+                    <input className="mst-inp" type="number" step="0.001" value={line.mrp} onChange={(e) => patch(line.key, 'mrp', e.target.value)} />
+                    {convHint(factor, convUnit, line.mrp)}
+                  </td>
                   <td><input className="mst-inp" type="number" step="0.01" value={line.disc} onChange={(e) => patch(line.key, 'disc', e.target.value)} /></td>
                   <td><input className="mst-inp" type="number" step="0.01" value={line.tax} onChange={(e) => patch(line.key, 'tax', e.target.value)} /></td>
                   <td><input className="mst-inp" type="number" min="0" step="0.001" value={line.free} onChange={(e) => patch(line.key, 'free', e.target.value)} /></td>
@@ -478,14 +552,15 @@ const PurchasePage: React.FC = () => {
       </div>
       {confirmOpen && (
         <div className="pos-modal-back" onClick={() => !busy && setConfirmOpen(false)}>
-          <div className="pos-modal pos-save-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="pos-modal-head">
+          <div className="pos-modal pos-save-modal pos-purchase-add-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pos-save-head">
               <h4>Confirm Purchase</h4>
               <button className="pos-btn pos-btn-outline" type="button" disabled={busy} onClick={() => setConfirmOpen(false)}>
                 Close
               </button>
             </div>
-            <div className="pos-row" style={{ marginBottom: 12 }}>
+            <div className="pos-save-body">
+            <div className="pos-row">
               <div className="pos-fg" style={{ flex: 2, minWidth: 180 }}>
                 <span className="pos-lbl">Supplier</span>
                 <select className="pos-sel" value={supplierId} onChange={(e) => onSupplier(e.target.value)}>
@@ -540,13 +615,14 @@ const PurchasePage: React.FC = () => {
                 <input className="pos-inp" readOnly value={money(balance)} />
               </div>
             </div>
-            <div className="pos-acts" style={{ marginTop: 14 }}>
+            <div className="pos-acts" style={{ marginTop: 8 }}>
               <button className="pos-btn" type="button" disabled={busy} onClick={save}>
                 <i className="fas fa-save" /> {busy ? 'SAVING...' : 'SAVE'}
               </button>
               <button className="pos-btn pos-btn-outline" type="button" disabled={busy} onClick={() => setConfirmOpen(false)}>
                 Cancel
               </button>
+            </div>
             </div>
           </div>
         </div>

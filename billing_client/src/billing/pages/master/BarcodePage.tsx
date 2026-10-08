@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { masterApi, masterData, masterError } from '../../../api/master/master-api-service';
+import { masterApi, masterError, masterPage } from '../../../api/master/master-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import './Master.css';
 
 type Item = { id: number; name: string; code: string; mrp: number; unit: string };
@@ -21,24 +22,36 @@ const loadJsBarcode = () =>
 
 const BarcodePage: React.FC = () => {
   const [rows, setRows] = useState<Item[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [qty, setQty] = useState<Record<number, number>>({});
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    masterApi
-      .barcodes()
-      .then((res) => {
-        const items = masterData<Item[]>(res) || [];
-        setRows(items);
-        const start: Record<number, number> = {};
-        items.forEach((item) => {
-          start[item.id] = 10;
+  const refresh = async (p = page) => {
+    try {
+      const pg = masterPage<Item>(await masterApi.barcodes(p, DEFAULT_PAGE_SIZE, search.trim() || undefined));
+      setRows(pg.items);
+      setTotal(pg.total);
+      setQty((prev) => {
+        const next = { ...prev };
+        pg.items.forEach((item) => {
+          if (next[item.id] == null) next[item.id] = 10;
         });
-        setQty(start);
-      })
-      .catch((err) => toast.error(masterError(err, 'Could not load barcodes')));
-  }, []);
+        return next;
+      });
+    } catch (err) {
+      toast.error(masterError(err, 'Could not load barcodes'));
+    }
+  };
+
+  useEffect(() => {
+    setPage(0);
+  }, [search]);
+
+  useEffect(() => {
+    refresh(page);
+  }, [page, search]);
 
   useEffect(() => {
     loadJsBarcode()
@@ -61,12 +74,6 @@ const BarcodePage: React.FC = () => {
       })
       .catch(() => undefined);
   }, [rows]);
-
-  const filtered = useMemo(
-    () =>
-      rows.filter((r) => [r.name, r.code].join(' ').toLowerCase().includes(search.toLowerCase())),
-    [rows, search]
-  );
 
   const queueCount = queue.reduce((sum, item) => sum + item.qty, 0);
 
@@ -153,13 +160,13 @@ const BarcodePage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((row, i) => (
+              {rows.map((row, i) => (
                 <tr key={row.id}>
-                  <td>{i + 1}</td>
+                  <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                   <td>{row.name}</td>
                   <td>{row.code}</td>
                   <td>
-                    <svg id={`barcode-${rows.indexOf(row)}`} />
+                    <svg id={`barcode-${i}`} />
                   </td>
                   <td className="num">₹{Number(row.mrp || 0).toFixed(2)}</td>
                   <td>{row.unit}</td>
@@ -182,6 +189,7 @@ const BarcodePage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={setPage} />
       </div>
     </div>
   );

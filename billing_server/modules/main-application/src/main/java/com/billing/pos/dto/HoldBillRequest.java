@@ -14,6 +14,7 @@ public class HoldBillRequest {
     private Double priceTotal;
     private Double discountTotal;
     private Integer isTaxBill = 1;
+    private Integer isEligibleForCommission = 0;
     private Long quotationId;
     private List<BillLineRequest> products;
 }

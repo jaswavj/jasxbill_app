@@ -1,5 +1,6 @@
 package com.billing.orderlist;
 
+import com.billing.common.JdbcPageHelper;
 import com.billing.core.response.ResponseDO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,8 +18,10 @@ public class OrderListController {
     private final OrderListService orderListService;
 
     @GetMapping
-    public ResponseDO list(@RequestParam(required = false, defaultValue = "pending") String type) {
-        return ok(orderListService.list(type));
+    public ResponseDO list(@RequestParam(required = false, defaultValue = "pending") String type,
+                           @RequestParam(defaultValue = "0") int page,
+                           @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(orderListService.list(type), page, size));
     }
 
     @GetMapping("/{id}")

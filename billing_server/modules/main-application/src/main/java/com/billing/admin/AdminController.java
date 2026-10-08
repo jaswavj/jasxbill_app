@@ -7,6 +7,7 @@ import com.billing.admin.dto.DateUpdateRequest;
 import com.billing.admin.dto.ExchangeSaveRequest;
 import com.billing.admin.dto.PaymentUpdateRequest;
 import com.billing.admin.dto.ReturnSaveRequest;
+import com.billing.common.JdbcPageHelper;
 import com.billing.core.response.ResponseDO;
 import com.billing.security.PlatformSecurityContext;
 import lombok.RequiredArgsConstructor;
@@ -103,30 +104,44 @@ public class AdminController {
     }
 
     @GetMapping("/reports/bill-date")
-    public ResponseDO dateChangeReport(@RequestParam String from, @RequestParam String to) {
-        return ok(adminService.dateChangeReport(from, to));
+    public ResponseDO dateChangeReport(@RequestParam String from,
+                                       @RequestParam String to,
+                                       @RequestParam(defaultValue = "0") int page,
+                                       @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(adminService.dateChangeReport(from, to), page, size));
     }
 
     @GetMapping("/reports/cancel")
-    public ResponseDO cancelReport(@RequestParam String from, @RequestParam String to) {
-        return ok(adminService.cancelReport(from, to));
+    public ResponseDO cancelReport(@RequestParam String from,
+                                   @RequestParam String to,
+                                   @RequestParam(defaultValue = "0") int page,
+                                   @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(adminService.cancelReport(from, to), page, size));
     }
 
     @GetMapping("/reports/payment-type")
-    public ResponseDO paymentChangeReport(@RequestParam String from, @RequestParam String to) {
-        return ok(adminService.paymentChangeReport(from, to));
+    public ResponseDO paymentChangeReport(@RequestParam String from,
+                                          @RequestParam String to,
+                                          @RequestParam(defaultValue = "0") int page,
+                                          @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(adminService.paymentChangeReport(from, to), page, size));
     }
 
     @GetMapping("/reports/exchange")
     public ResponseDO exchangeReport(@RequestParam String from,
                                      @RequestParam String to,
-                                     @RequestParam(required = false) Integer type) {
-        return ok(adminService.exchangeReport(from, to, type));
+                                     @RequestParam(required = false) Integer type,
+                                     @RequestParam(defaultValue = "0") int page,
+                                     @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(adminService.exchangeReport(from, to, type), page, size));
     }
 
     @GetMapping("/reports/edit-log")
-    public ResponseDO editLog(@RequestParam String from, @RequestParam String to) {
-        return ok(adminService.editLog(from, to));
+    public ResponseDO editLog(@RequestParam String from,
+                              @RequestParam String to,
+                              @RequestParam(defaultValue = "0") int page,
+                              @RequestParam(defaultValue = "25") int size) {
+        return ok(adminService.editLog(from, to, page, size));
     }
 
     private Long currentUserId() {

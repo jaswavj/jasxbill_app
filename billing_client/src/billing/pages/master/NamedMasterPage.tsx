@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { masterApi, masterData, masterError } from '../../../api/master/master-api-service';
+import { masterApi, masterError, masterPage } from '../../../api/master/master-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import './Master.css';
 
 type Row = { id: number; name: string };
@@ -8,7 +9,7 @@ type Row = { id: number; name: string };
 type Props = {
   title: string;
   icon: string;
-  load: () => Promise<any>;
+  load: (page: number, size: number, q?: string) => Promise<any>;
   save: (payload: { id?: number; name: string }) => Promise<any>;
   block: (id: number) => Promise<any>;
   addedMsg: string;
@@ -18,23 +19,31 @@ type Props = {
 
 const NamedMasterPage: React.FC<Props> = ({ title, icon, load, save, block, addedMsg, updatedMsg, blockedMsg }) => {
   const [rows, setRows] = useState<Row[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [name, setName] = useState('');
   const [editId, setEditId] = useState(0);
   const [blockIt, setBlockIt] = useState(false);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const refresh = async () => {
+  const refresh = async (p = page, q = search) => {
     try {
-      setRows(masterData<Row[]>(await load()) || []);
+      const pg = masterPage<Row>(await load(p, DEFAULT_PAGE_SIZE, q.trim() || undefined));
+      setRows(pg.items);
+      setTotal(pg.total);
     } catch (err) {
       toast.error(masterError(err, 'Could not load list'));
     }
   };
 
   useEffect(() => {
-    refresh();
-  }, []);
+    setPage(0);
+  }, [search]);
+
+  useEffect(() => {
+    refresh(page, search);
+  }, [page, search]);
 
   const reset = () => {
     setName('');
@@ -58,15 +67,13 @@ const NamedMasterPage: React.FC<Props> = ({ title, icon, load, save, block, adde
         toast.success(editId ? updatedMsg : addedMsg);
       }
       reset();
-      await refresh();
+      await refresh(page, search);
     } catch (err) {
       toast.error(masterError(err, 'Save failed'));
     } finally {
       setBusy(false);
     }
   };
-
-  const filtered = rows.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="mst-page">
@@ -125,16 +132,16 @@ const NamedMasterPage: React.FC<Props> = ({ title, icon, load, save, block, adde
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 && (
+                {rows.length === 0 && (
                   <tr>
                     <td colSpan={3} className="mst-empty">
                       No records
                     </td>
                   </tr>
                 )}
-                {filtered.map((row, i) => (
+                {rows.map((row, i) => (
                   <tr key={row.id}>
-                    <td>{i + 1}</td>
+                    <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                     <td>{row.name}</td>
                     <td>
                       <button
@@ -155,6 +162,7 @@ const NamedMasterPage: React.FC<Props> = ({ title, icon, load, save, block, adde
               </tbody>
             </table>
           </div>
+          <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={setPage} />
         </div>
       </div>
     </div>

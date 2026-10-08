@@ -1,4 +1,6 @@
 import HttpClientWrapper from '../http-client-wrapper';
+import { normalizePage } from '../../billing/components/ListPagination';
+import { pageQuery } from '../page-query';
 
 export class AdminApiService {
   private http = new HttpClientWrapper();
@@ -25,15 +27,19 @@ export class AdminApiService {
   saveExchange = (payload: any) => this.http.post('/v1/admin/exchange', payload);
   saveReturn = (payload: any) => this.http.post('/v1/admin/exchange/return', payload);
 
-  dateChangeReport = (from: string, to: string) => this.http.get(`/v1/admin/reports/bill-date?from=${from}&to=${to}`);
-  cancelReport = (from: string, to: string) => this.http.get(`/v1/admin/reports/cancel?from=${from}&to=${to}`);
-  paymentChangeReport = (from: string, to: string) => this.http.get(`/v1/admin/reports/payment-type?from=${from}&to=${to}`);
-  exchangeReport = (from: string, to: string, type?: number) => {
-    const params = new URLSearchParams({ from, to });
+  dateChangeReport = (from: string, to: string, page = 0, size = 25) =>
+    this.http.get(`/v1/admin/reports/bill-date?from=${from}&to=${to}&${pageQuery(page, size)}`);
+  cancelReport = (from: string, to: string, page = 0, size = 25) =>
+    this.http.get(`/v1/admin/reports/cancel?from=${from}&to=${to}&${pageQuery(page, size)}`);
+  paymentChangeReport = (from: string, to: string, page = 0, size = 25) =>
+    this.http.get(`/v1/admin/reports/payment-type?from=${from}&to=${to}&${pageQuery(page, size)}`);
+  exchangeReport = (from: string, to: string, type?: number, page = 0, size = 25) => {
+    const params = new URLSearchParams({ from, to, ...Object.fromEntries(new URLSearchParams(pageQuery(page, size))) });
     if (type) params.set('type', String(type));
     return this.http.get(`/v1/admin/reports/exchange?${params}`);
   };
-  editLog = (from: string, to: string) => this.http.get(`/v1/admin/reports/edit-log?from=${from}&to=${to}`);
+  editLog = (from: string, to: string, page = 0, size = 25) =>
+    this.http.get(`/v1/admin/reports/edit-log?from=${from}&to=${to}&${pageQuery(page, size)}`);
 }
 
 export const adminApi = new AdminApiService();
@@ -42,6 +48,8 @@ export const adminData = <T>(res: any): T => {
   if (!res?.success) throw new Error(res?.data?.error || 'Request failed');
   return res.data as T;
 };
+
+export const adminPage = <T>(res: any) => normalizePage(adminData<T[] | ReturnType<typeof normalizePage<T>>>(res));
 
 export const adminError = (err: any, fallback: string) =>
   err?.response?.data?.data?.error || err?.message || fallback;

@@ -167,11 +167,7 @@ public class StatisticsService {
         data.put("todaySales", todaySales);
         data.put("todayBills", todayBills);
         data.put("daily", daily);
-        try {
-            data.put("bills", billingReadService.monthBills(y, m));
-        } catch (Exception ignored) {
-            data.put("bills", List.of());
-        }
+        data.put("bills", List.of());
         return data;
     }
 

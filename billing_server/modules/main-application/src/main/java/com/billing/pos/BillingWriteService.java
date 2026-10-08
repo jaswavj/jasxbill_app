@@ -150,8 +150,8 @@ public class BillingWriteService {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(con -> {
             PreparedStatement ps = con.prepareStatement(
-                    "INSERT INTO prod_quotation (bill_display, total, prodDisc, extraDisc, payable, cusName, cusPhn, customerId, date, time, uid, is_billed, is_cancelled) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, 0, 0)",
+                    "INSERT INTO prod_quotation (bill_display, total, prodDisc, extraDisc, payable, cusName, cusPhn, customerId, date, time, uid, is_billed, is_cancelled, is_tax_bill, is_commission) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, 0, 0, ?, ?)",
                     Statement.RETURN_GENERATED_KEYS
             );
             ps.setString(1, quotNo);
@@ -167,6 +167,8 @@ public class BillingWriteService {
                 ps.setNull(8, java.sql.Types.INTEGER);
             }
             ps.setLong(9, uid);
+            ps.setInt(10, request.getIsTaxBill() == null ? 1 : request.getIsTaxBill());
+            ps.setInt(11, request.getIsEligibleForCommission() != null && request.getIsEligibleForCommission() == 1 ? 1 : 0);
             return ps;
         }, keyHolder);
         long quotId = requireGeneratedId(keyHolder);
@@ -193,7 +195,7 @@ public class BillingWriteService {
         }
         String quotNo = existing.get(0);
         jdbcTemplate.update(
-                "UPDATE prod_quotation SET total=?, prodDisc=?, extraDisc=?, payable=?, cusName=?, cusPhn=?, customerId=?, date=NOW(), time=NOW(), uid=? " +
+                "UPDATE prod_quotation SET total=?, prodDisc=?, extraDisc=?, payable=?, cusName=?, cusPhn=?, customerId=?, date=NOW(), time=NOW(), uid=?, is_tax_bill=?, is_commission=? " +
                         "WHERE id=?",
                 nz(request.getPriceTotal()),
                 nz(request.getDiscountTotal()),
@@ -203,6 +205,8 @@ public class BillingWriteService {
                 blankToDash(request.getCustomerPhn()),
                 request.getCustomerId() != null && request.getCustomerId() > 0 ? request.getCustomerId() : null,
                 uid,
+                request.getIsTaxBill() == null ? 1 : request.getIsTaxBill(),
+                request.getIsEligibleForCommission() != null && request.getIsEligibleForCommission() == 1 ? 1 : 0,
                 quotId
         );
         jdbcTemplate.update("UPDATE prod_quotation_details SET is_cancelled = 1 WHERE quot_id = ?", quotId);

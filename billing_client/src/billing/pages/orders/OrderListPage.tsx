@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { orderApi, orderData, orderError } from '../../../api/orders/order-list-api-service';
+import { orderApi, orderData, orderError, orderPage } from '../../../api/orders/order-list-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import '../master/Master.css';
 
 type OrderRow = {
@@ -23,26 +24,31 @@ const n2 = (v?: number) => Number(v || 0).toFixed(2);
 const OrderListPage: React.FC = () => {
   const [type, setType] = useState<(typeof TYPES)[number]['id']>('pending');
   const [rows, setRows] = useState<OrderRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async (nextType = type) => {
+  const load = useCallback(async (nextType: (typeof TYPES)[number]['id'], p: number) => {
     try {
-      setRows(orderData<OrderRow[]>(await orderApi.list(nextType)) || []);
+      const pg = orderPage<OrderRow>(await orderApi.list(nextType, p, DEFAULT_PAGE_SIZE));
+      setRows(pg.items);
+      setTotal(pg.total);
+      setPage(p);
     } catch (err) {
       toast.error(orderError(err, 'Could not load orders'));
     }
-  }, [type]);
+  }, []);
 
   useEffect(() => {
-    load(type);
-  }, [load, type]);
+    load(type, page);
+  }, [load, type, page]);
 
   useEffect(() => {
     if (type !== 'pending') return undefined;
-    const timer = window.setInterval(() => load('pending'), 30000);
+    const timer = window.setInterval(() => load('pending', page), 30000);
     return () => window.clearInterval(timer);
-  }, [type, load]);
+  }, [type, page, load]);
 
   const openDetail = async (id: number) => {
     try {
@@ -59,7 +65,7 @@ const OrderListPage: React.FC = () => {
       orderData(await orderApi.markOrderDelivered(id));
       toast.success('Order marked as delivered');
       setDetail(null);
-      await load('pending');
+      await load('pending', page);
     } catch (err) {
       toast.error(orderError(err, 'Could not update order'));
     } finally {
@@ -73,7 +79,7 @@ const OrderListPage: React.FC = () => {
       orderData(await orderApi.markItemDelivered(detailId));
       toast.success('Item marked as delivered');
       await openDetail(orderId);
-      await load(type);
+      await load(type, page);
     } catch (err) {
       toast.error(orderError(err, 'Could not update item'));
     } finally {
@@ -91,7 +97,7 @@ const OrderListPage: React.FC = () => {
               key={t.id}
               type="button"
               className={`mst-btn ${type === t.id ? 'mst-btn-primary' : 'mst-btn-outline'}`}
-              onClick={() => { setType(t.id); setDetail(null); }}
+              onClick={() => { setType(t.id); setDetail(null); setPage(0); }}
             >
               {t.label}
             </button>
@@ -133,6 +139,7 @@ const OrderListPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={(p) => setPage(p)} />
         </div>
         <div className="mst-card">
           <div className="mst-card-h">Order Details</div>

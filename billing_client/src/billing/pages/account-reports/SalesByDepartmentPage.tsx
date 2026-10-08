@@ -8,7 +8,7 @@ const SalesByDepartmentPage: React.FC = () => (
     title="Sales by Department"
     icon="fas fa-sitemap"
     filterLabel="Brand"
-    loadOptions={masterApi.brands}
+    loadOptions={masterApi.brandsAll}
     searchRows={accountApi.salesByDepartment}
   />
 );

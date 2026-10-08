@@ -1209,6 +1209,8 @@ CREATE TABLE `prod_quotation` (
   `date` date DEFAULT NULL,
   `time` time DEFAULT NULL,
   `uid` int DEFAULT NULL,
+  `is_tax_bill` tinyint NOT NULL DEFAULT 1,
+  `is_commission` tinyint NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 

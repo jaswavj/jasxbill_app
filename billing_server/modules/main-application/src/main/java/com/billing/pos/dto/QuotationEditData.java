@@ -2,17 +2,15 @@ package com.billing.pos.dto;
 
 import lombok.Data;
 
+import java.util.List;
+
 @Data
-public class QuotationData {
-    private Long id;
-    private String billDisplay;
+public class QuotationEditData {
     private String customerName;
     private String customerPhone;
-    private Double payable;
-    private Double extraDiscount;
     private Long customerId;
+    private Double extraDiscount;
     private Integer isTaxBill;
     private Integer isCommission;
-    private String date;
-    private String time;
+    private List<QuotationLineData> lines;
 }

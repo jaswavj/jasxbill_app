@@ -1,5 +1,6 @@
 package com.billing.inventory;
 
+import com.billing.common.JdbcPageHelper;
 import com.billing.core.response.ResponseDO;
 import com.billing.inventory.dto.SavePurchaseRequest;
 import com.billing.inventory.dto.SavePurchaseReturnRequest;
@@ -23,8 +24,15 @@ public class InventoryController {
     private final PlatformSecurityContext securityContext;
 
     @GetMapping("/suppliers")
-    public ResponseDO suppliers() {
-        return ok(inventoryService.suppliers());
+    public ResponseDO suppliers(@RequestParam(defaultValue = "0") int page,
+                                @RequestParam(defaultValue = "25") int size,
+                                @RequestParam(required = false) String q) {
+        return ok(inventoryService.suppliers(page, size, q));
+    }
+
+    @GetMapping("/suppliers/all")
+    public ResponseDO suppliersAll() {
+        return ok(inventoryService.suppliersAll());
     }
 
     @PostMapping("/suppliers")
@@ -77,8 +85,10 @@ public class InventoryController {
     @GetMapping("/purchases/report")
     public ResponseDO purchaseReport(@RequestParam String from,
                                      @RequestParam String to,
-                                     @RequestParam(required = false) Long supplierId) {
-        return ok(inventoryService.purchaseReport(from, to, supplierId));
+                                     @RequestParam(required = false) Long supplierId,
+                                     @RequestParam(defaultValue = "0") int page,
+                                     @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(inventoryService.purchaseReport(from, to, supplierId), page, size));
     }
 
     @GetMapping("/purchases/{id}")
@@ -99,8 +109,10 @@ public class InventoryController {
     @GetMapping("/returns/report")
     public ResponseDO returnReport(@RequestParam String from,
                                    @RequestParam String to,
-                                   @RequestParam(required = false) Long supplierId) {
-        return ok(inventoryService.returnReport(from, to, supplierId));
+                                   @RequestParam(required = false) Long supplierId,
+                                   @RequestParam(defaultValue = "0") int page,
+                                   @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(inventoryService.returnReport(from, to, supplierId), page, size));
     }
 
     @GetMapping("/returns/history")
@@ -111,8 +123,10 @@ public class InventoryController {
     @GetMapping("/payments/report")
     public ResponseDO paymentReport(@RequestParam String from,
                                     @RequestParam String to,
-                                    @RequestParam(required = false) Long supplierId) {
-        return ok(inventoryService.supplierPaymentReport(from, to, supplierId));
+                                    @RequestParam(required = false) Long supplierId,
+                                    @RequestParam(defaultValue = "0") int page,
+                                    @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(inventoryService.supplierPaymentReport(from, to, supplierId), page, size));
     }
 
     private Long currentUserId() {

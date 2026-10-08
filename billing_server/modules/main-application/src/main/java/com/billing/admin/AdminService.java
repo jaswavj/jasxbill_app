@@ -22,6 +22,7 @@ import com.billing.admin.dto.PaymentInfoData;
 import com.billing.admin.dto.PaymentUpdateRequest;
 import com.billing.admin.dto.ReturnSaveRequest;
 import com.billing.admin.dto.SimpleIdName;
+import com.billing.core.pagination.PageResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -808,12 +809,14 @@ public class AdminService {
         );
     }
 
-    public List<EditLogRow> editLog(String from, String to) {
+    public PageResult<EditLogRow> editLog(String from, String to, int page, int size) {
         ensureEditLogTable();
-        return jdbcTemplate.query(
-                "SELECT a.id, a.bill_id, a.bill_display, a.action, a.details, a.date, a.time, IFNULL(u.user_name, '') AS user_name " +
-                        "FROM prod_bill_edit_log a LEFT JOIN users u ON u.id = a.uid " +
-                        "WHERE a.date BETWEEN ? AND ? ORDER BY a.date DESC, a.time DESC, a.id DESC",
+        String sql = "SELECT a.id, a.bill_id, a.bill_display, a.action, a.details, a.date, a.time, IFNULL(u.user_name, '') AS user_name " +
+                "FROM prod_bill_edit_log a LEFT JOIN users u ON u.id = a.uid " +
+                "WHERE a.date BETWEEN ? AND ? ORDER BY a.date DESC, a.time DESC, a.id DESC";
+        return com.billing.common.JdbcPageHelper.query(
+                jdbcTemplate,
+                sql,
                 (rs, i) -> {
                     EditLogRow row = new EditLogRow();
                     row.setId(rs.getLong("id"));
@@ -826,7 +829,10 @@ public class AdminService {
                     row.setUserName(rs.getString("user_name"));
                     return row;
                 },
-                from, to
+                page,
+                size,
+                from,
+                to
         );
     }
 

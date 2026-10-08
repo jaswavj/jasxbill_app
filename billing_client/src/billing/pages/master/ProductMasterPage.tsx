@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { masterApi, masterData, masterError } from '../../../api/master/master-api-service';
+import { masterApi, masterData, masterError, masterPage } from '../../../api/master/master-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import { useHeadings } from './useHeadings';
 import './Master.css';
 
@@ -21,6 +22,8 @@ const ProductMasterPage: React.FC = () => {
   const heads = useHeadings();
   const [categories, setCategories] = useState<Named[]>([]);
   const [rows, setRows] = useState<BulkRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [name, setName] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [busy, setBusy] = useState(false);
@@ -30,15 +33,27 @@ const ProductMasterPage: React.FC = () => {
       .lookups()
       .then((res) => setCategories(masterData<any>(res).categories || []))
       .catch(() => undefined);
-    search();
   }, []);
 
-  const search = async () => {
+  const search = async (p = page) => {
     try {
-      setRows(masterData<BulkRow[]>(await masterApi.bulkProducts(name, categoryId ? Number(categoryId) : undefined)) || []);
+      const pg = masterPage<BulkRow>(
+        await masterApi.bulkProducts(name.trim() || undefined, categoryId ? Number(categoryId) : undefined, p, DEFAULT_PAGE_SIZE)
+      );
+      setRows(pg.items);
+      setTotal(pg.total);
     } catch (err) {
       toast.error(masterError(err, 'Could not load products'));
     }
+  };
+
+  useEffect(() => {
+    search(page);
+  }, [page]);
+
+  const runSearch = () => {
+    if (page === 0) search(0);
+    else setPage(0);
   };
 
   const updateRow = (index: number, patch: Partial<BulkRow>) => {
@@ -92,7 +107,7 @@ const ProductMasterPage: React.FC = () => {
             </select>
           </div>
           <div className="mst-actions">
-            <button className="mst-btn mst-btn-outline" type="button" onClick={search}>Search</button>
+            <button className="mst-btn mst-btn-outline" type="button" onClick={runSearch}>Search</button>
             <button className="mst-btn mst-btn-primary" type="button" disabled={busy} onClick={saveAll}>
               Save Changes
             </button>
@@ -118,7 +133,7 @@ const ProductMasterPage: React.FC = () => {
             <tbody>
               {rows.map((row, i) => (
                 <tr key={`${row.id}-${row.batchId}`}>
-                  <td>{i + 1}</td>
+                  <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                   <td>{row.name}</td>
                   <td>
                     <input className="mst-inp" value={row.code || ''} onChange={(e) => updateRow(i, { code: e.target.value })} />
@@ -145,6 +160,7 @@ const ProductMasterPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={setPage} />
       </div>
     </div>
   );

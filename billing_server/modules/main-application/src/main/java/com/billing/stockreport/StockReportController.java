@@ -1,5 +1,6 @@
 package com.billing.stockreport;
 
+import com.billing.common.JdbcPageHelper;
 import com.billing.core.response.ResponseDO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,23 +21,28 @@ public class StockReportController {
     }
 
     @GetMapping("/current-stock")
-    public ResponseDO currentStock() {
-        return ok(stockReportService.currentStock());
+    public ResponseDO currentStock(@RequestParam(defaultValue = "0") int page,
+                                   @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(stockReportService.currentStock(), page, size));
     }
 
     @GetMapping("/transactions")
     public ResponseDO transactions(@RequestParam String from,
                                    @RequestParam String to,
-                                   @RequestParam(required = false) Long productId) {
-        return ok(stockReportService.transactions(from, to, productId));
+                                   @RequestParam(required = false) Long productId,
+                                   @RequestParam(defaultValue = "0") int page,
+                                   @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(stockReportService.transactions(from, to, productId), page, size));
     }
 
     @GetMapping("/adjustments")
     public ResponseDO adjustments(@RequestParam String from,
                                   @RequestParam String to,
                                   @RequestParam(required = false) Long productId,
-                                  @RequestParam(required = false) Integer stockType) {
-        return ok(stockReportService.adjustments(from, to, productId, stockType));
+                                  @RequestParam(required = false) Integer stockType,
+                                  @RequestParam(defaultValue = "0") int page,
+                                  @RequestParam(defaultValue = "25") int size) {
+        return ok(JdbcPageHelper.slice(stockReportService.adjustments(from, to, productId, stockType), page, size));
     }
 
     private ResponseDO ok(Object data) {

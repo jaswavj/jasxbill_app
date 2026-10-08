@@ -86,6 +86,8 @@ const BillingPage: React.FC = () => {
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerId, setCustomerId] = useState(0);
   const [customerHits, setCustomerHits] = useState<Customer[]>([]);
+  const [custField, setCustField] = useState<'name' | 'phone' | null>(null);
+  const [custIndex, setCustIndex] = useState(0);
   const [exchangePoint, setExchangePoint] = useState(0);
   const [exchangeUsed, setExchangeUsed] = useState(0);
   const [bypassCap, setBypassCap] = useState(false);
@@ -101,18 +103,36 @@ const BillingPage: React.FC = () => {
   const [stock, setStock] = useState<number | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
+  const custPhoneRef = useRef<HTMLInputElement>(null);
+  const taxBillRef = useRef<HTMLInputElement>(null);
+  const custHitRef = useRef<HTMLButtonElement>(null);
+  const custSearchSeq = useRef(0);
   const autoPay = useRef(true);
 
   const [lines, setLines] = useState<Line[]>([]);
+  const [, setLineKey] = useState(1);
   const [extraDisc, setExtraDisc] = useState('0');
   const [mode, setMode] = useState('1');
   const [payType, setPayType] = useState('1');
   const [cashPaid, setCashPaid] = useState('0');
   const [bankPaid, setBankPaid] = useState('0');
   const [balance, setBalance] = useState('0');
+  const [payEpoch, setPayEpoch] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [holding, setHolding] = useState(false);
   const [savedNo, setSavedNo] = useState('');
+  const [savedStamp, setSavedStamp] = useState(-1);
+  const billStampRef = useRef(0);
+  const [billStamp, setBillStamp] = useState(0);
   const [quotationId, setQuotationId] = useState(0);
+  const editingHoldIdRef = useRef(0);
+  const loadHoldSeqRef = useRef(0);
+  const loadHoldBusyIdRef = useRef(0);
+  const billSessionRef = useRef(0);
+  const holdSavingRef = useRef(false);
+  const cartGenRef = useRef(0);
+  const saleTouchGenRef = useRef(0);
+  const linesStampRef = useRef(0);
   const [holdNo, setHoldNo] = useState('');
 
   const [saveOpen, setSaveOpen] = useState(false);
@@ -158,10 +178,11 @@ const BillingPage: React.FC = () => {
     const billNo = (searchParams.get('edit') || '').trim();
     if (!billNo) return;
     let live = true;
+    const loadSession = billSessionRef.current;
     (async () => {
       try {
         const res: any = await api.editBill(billNo);
-        if (!live) return;
+        if (!live || loadSession !== billSessionRef.current) return;
         if (!res?.success || !res.data) {
           toast.error(res?.data?.error || 'Bill not found');
           return;
@@ -226,6 +247,8 @@ const BillingPage: React.FC = () => {
   const paidAmt = cashAmt + bankAmt;
   const dueAmt = Math.max(0, payable - paidAmt);
   const paidOver = paidAmt - payable > 0.001;
+  const needsCustomerForDue =
+    dueAmt > 0.001 && (!customerName.trim() || customerName.trim() === '-');
 
   useEffect(() => {
     if (!bypassCap && totals.priceTotal > 0 && discPer < 100) {
@@ -243,33 +266,109 @@ const BillingPage: React.FC = () => {
     if (mode === '1') {
       setCashPaid(money(payable));
       setBankPaid('0');
+      setBalance('0');
     } else if (mode === '2') {
       setCashPaid('0');
       setBankPaid(money(payable));
+      setBalance('0');
     }
-  }, [payable, mode]);
+  }, [payable, mode, payEpoch]);
 
   useEffect(() => {
     setBalance(money(Math.max(0, payable - (parseFloat(cashPaid) || 0) - (parseFloat(bankPaid) || 0))));
   }, [payable, cashPaid, bankPaid]);
 
-  const searchCustomers = async (query?: string, phone?: string) => {
-    if ((!query || query.length < 1) && (!phone || phone.length < 2)) {
+  useEffect(() => {
+    custHitRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [custIndex, customerHits, custField]);
+
+  const clearCustSuggest = () => {
+    custSearchSeq.current += 1;
+    setCustomerHits([]);
+    setCustField(null);
+    setCustIndex(0);
+  };
+
+  const searchCustomers = async (query: string | undefined, phone: string | undefined, field: 'name' | 'phone') => {
+    const seq = ++custSearchSeq.current;
+    setCustField(field);
+    setCustIndex(0);
+    const tooShort = field === 'name'
+      ? !query || query.trim().length < 1
+      : !phone || phone.trim().length < 2;
+    if (tooShort) {
       setCustomerHits([]);
+      setCustField(null);
       return;
     }
-    const res: any = await api.searchCustomers(query, phone);
-    setCustomerHits(res?.data || []);
+    try {
+      const res: any = await api.searchCustomers(query, phone);
+      if (seq !== custSearchSeq.current) return;
+      const hits: Customer[] = res?.data || [];
+      setCustomerHits(hits);
+      setCustIndex(0);
+      setCustField(hits.length ? field : null);
+    } catch {
+      if (seq !== custSearchSeq.current) return;
+      setCustomerHits([]);
+      setCustField(null);
+    }
   };
 
   const pickCustomer = (c: Customer) => {
+    markSaleDraft();
     setCustomerId(c.id);
     setCustomerName(c.name);
     setCustomerPhone(c.phone === '-' ? '' : c.phone);
     setExchangePoint(c.exchangePoint || 0);
     if (c.isEligibleForCommission === 1) setIsCommission(true);
-    setCustomerHits([]);
+    clearCustSuggest();
   };
+
+  const onCustomerKey = (field: 'name' | 'phone') => (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const open = custField === field && customerHits.length > 0;
+    if (!open) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setCustIndex((i) => Math.min(customerHits.length - 1, i + 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setCustIndex((i) => Math.max(0, i - 1));
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      clearCustSuggest();
+    } else if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+      e.preventDefault();
+      const pick = customerHits[Math.min(custIndex, customerHits.length - 1)] || customerHits[0];
+      if (pick) pickCustomer(pick);
+      if (e.key === 'Tab') {
+        if (field === 'name') custPhoneRef.current?.focus();
+        else taxBillRef.current?.focus();
+      }
+    }
+  };
+
+  const customerSuggest = (field: 'name' | 'phone') => (
+    custField === field && customerHits.length > 0 ? (
+      <div className="pos-suggest" role="listbox">
+        {customerHits.map((c, i) => (
+          <button
+            key={c.id}
+            type="button"
+            role="option"
+            aria-selected={i === custIndex}
+            ref={i === custIndex ? custHitRef : undefined}
+            className={i === custIndex ? 'on' : ''}
+            onMouseEnter={() => setCustIndex(i)}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => pickCustomer(c)}
+          >
+            {c.name} {c.phone && c.phone !== '-' ? `· ${c.phone}` : ''}
+          </button>
+        ))}
+      </div>
+    ) : null
+  );
 
   const focusQty = () => {
     requestAnimationFrame(() => {
@@ -414,7 +513,12 @@ const BillingPage: React.FC = () => {
       toast.warn(`Stock limit. Available to add: ${available}`);
       return;
     }
-    setLines((prev) => [...prev, buildLine(pending, qtyInput, unitPrice, unitSel, prev.reduce((m, l) => Math.max(m, l.key), 0) + 1)]);
+    const stamp = linesStampRef.current;
+    setLines((prev) => {
+      if (linesStampRef.current !== stamp) return prev;
+      return [...prev, buildLine(pending, qtyInput, unitPrice, unitSel, prev.reduce((m, l) => Math.max(m, l.key), 0) + 1)];
+    });
+    if (editingHoldIdRef.current <= 0) clearHoldTracking();
     setPending(null);
     setSearch('');
     setQty('1');
@@ -442,7 +546,12 @@ const BillingPage: React.FC = () => {
       updateLineQtyPrice(existing.key, existing.qty + 1, existing.price);
       return;
     }
-    setLines((prev) => [...prev, buildLine(p, 1, unitPrice, '', prev.reduce((m, l) => Math.max(m, l.key), 0) + 1)]);
+    const stamp = linesStampRef.current;
+    setLines((prev) => {
+      if (linesStampRef.current !== stamp) return prev;
+      return [...prev, buildLine(p, 1, unitPrice, '', prev.reduce((m, l) => Math.max(m, l.key), 0) + 1)];
+    });
+    if (editingHoldIdRef.current <= 0) clearHoldTracking();
   };
 
   const lineAmount = (line: Line) => (isCommission ? line.total : line.qty * line.price - line.discount);
@@ -535,16 +644,66 @@ const BillingPage: React.FC = () => {
     products: collectProducts(),
   });
 
+  const holdPayloadBase = () => {
+    const { quotationId: _omit, ...rest } = payloadBase();
+    return rest;
+  };
+
+  const activeHoldId = () => {
+    const id = Number(editingHoldIdRef.current);
+    return Number.isFinite(id) && id > 0 ? id : 0;
+  };
+
+  const isEditingHold = activeHoldId() > 0;
+
+  const clearHoldTracking = () => {
+    editingHoldIdRef.current = 0;
+    setQuotationId(0);
+    setHoldNo('');
+  };
+
+  const markSaleDraft = () => {
+    saleTouchGenRef.current = cartGenRef.current;
+  };
+
+  const applySaleDefaults = () => {
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerId(0);
+    clearCustSuggest();
+    setExchangePoint(0);
+    setExchangeUsed(0);
+    setBypassCap(false);
+    setIsTaxBill(true);
+    setIsCommission(false);
+    setExtraDisc('0');
+    setMode('1');
+    setPayType('1');
+    setCashPaid('0');
+    setBankPaid('0');
+    setBalance('0');
+  };
+
+  const showHoldBadge = quotationId > 0 && !!holdNo && lines.length > 0;
+  const showSavedBill = !!savedNo && savedStamp === billStamp && !editBillId;
+
   const openSave = () => {
     if (totals.priceTotal === 0 && !savedNo) {
       toast.error('Empty bill. Add products first.');
       return;
     }
+    if (!editBillId && activeHoldId() === 0 && quotationId <= 0 && saleTouchGenRef.current !== cartGenRef.current) {
+      autoPay.current = true;
+      applySaleDefaults();
+      setCashPaid(money(payable));
+      setBankPaid('0');
+      setBalance('0');
+    }
     setSaveOpen(true);
   };
 
   const saveBill = async () => {
-    if (savedNo && !editBillId) return;
+    if (showSavedBill) return;
     if (totals.priceTotal === 0) {
       toast.error('Empty bill. Add products first.');
       return;
@@ -566,6 +725,7 @@ const BillingPage: React.FC = () => {
       return;
     }
     setSaving(true);
+    const session = billSessionRef.current;
     try {
       const payload = {
         ...payloadBase(),
@@ -580,8 +740,11 @@ const BillingPage: React.FC = () => {
       const res: any = editBillId
         ? await api.updateBill(editBillId, payload)
         : await api.saveBill(payload);
+      if (session !== billSessionRef.current || session !== billStampRef.current) return;
       if (res?.success) {
         setSavedNo(res.data.billDisplay);
+        setSavedStamp(session);
+        if (quotationId > 0) clearHoldTracking();
         toast.success(editBillId ? `Bill updated: ${res.data.billDisplay}` : `Bill saved: ${res.data.billDisplay}`);
       } else {
         toast.error(res?.data?.error || (editBillId ? 'Update failed' : 'Save failed'));
@@ -594,20 +757,56 @@ const BillingPage: React.FC = () => {
   };
 
   const saveHold = async () => {
+    if (holdSavingRef.current) return;
     if (totals.priceTotal === 0) {
       toast.error('Add products before hold.');
       return;
     }
+    const existingHoldId = activeHoldId();
+    const session = billSessionRef.current;
+    holdSavingRef.current = true;
+    setHolding(true);
+    let holdSaved = false;
     try {
-      const res: any = await api.saveHold(payloadBase());
+      const res: any = await api.saveHold({
+        ...holdPayloadBase(),
+        quotationId: existingHoldId > 0 ? existingHoldId : null,
+      });
+      if (session !== billSessionRef.current) return;
       if (res?.success) {
-        setHoldNo(res.data.quotNo);
-        setQuotationId(res.data.quotId || quotationId);
-        toast.success(`Held as ${res.data.quotNo}`);
-        if (res.data.quotId) await printHoldDoc(res.data.quotId);
+        holdSaved = true;
+        const quotId = Number(res.data?.quotId || existingHoldId || 0);
+        const quotNo = res.data?.quotNo || holdNo;
+        const isUpdate = existingHoldId > 0;
+        if (isUpdate) {
+          if (quotId > 0) {
+            editingHoldIdRef.current = quotId;
+            setQuotationId(quotId);
+          }
+          setHoldNo(quotNo);
+          toast.success(`Hold updated: ${quotNo}`);
+        } else {
+          toast.success(`Held as ${quotNo}`);
+          setSaveOpen(false);
+          resetBillingScreen();
+          if (quotId > 0) {
+            try {
+              await printHoldDoc(quotId);
+            } catch {
+              /* printHoldDoc shows its own toast */
+            }
+          }
+        }
+      } else if (session === billSessionRef.current) {
+        toast.error(res?.data?.error || 'Hold failed');
       }
     } catch (e: any) {
-      toast.error(e?.response?.data?.data?.error || 'Hold failed');
+      if (!holdSaved && session === billSessionRef.current) {
+        toast.error(e?.response?.data?.data?.error || e?.message || 'Hold failed');
+      }
+    } finally {
+      holdSavingRef.current = false;
+      setHolding(false);
     }
   };
 
@@ -619,37 +818,125 @@ const BillingPage: React.FC = () => {
 
   const dashToEmpty = (v?: string) => (!v || v === '-' ? '' : v);
 
+  const holdLineItems = (res: any): any[] => {
+    if (Array.isArray(res)) return res;
+    if (Array.isArray(res?.data)) return res.data;
+    if (Array.isArray(res?.data?.lines)) return res.data.lines;
+    if (Array.isArray(res?.lines)) return res.lines;
+    return [];
+  };
+
+  const applyHoldForm = (header: any, items: any[]) => {
+    const name = header?.customerName ?? header?.cusName;
+    const phone = header?.customerPhone ?? header?.cusPhn;
+    const extraValue = header?.extraDiscount ?? header?.extraDisc ?? 0;
+    const anyGst = items.some((item) => Number(item?.gst) > 0);
+    const commissionFromTotal = items.some((item) => {
+      const net = Number(item?.qty) * Number(item?.price) - Number(item?.discount || 0);
+      return Number(item?.total) + 0.05 < net;
+    });
+    const taxFlag = header?.isTaxBill;
+    const commissionFlag = header?.isCommission ?? header?.isEligibleForCommission;
+    setCustomerName(dashToEmpty(name));
+    setCustomerPhone(dashToEmpty(phone));
+    setCustomerId(Number(header?.customerId) || 0);
+    setBypassCap(true);
+    setExtraDisc(String(extraValue || 0));
+    setIsTaxBill(taxFlag === 0 || taxFlag === false ? false : (taxFlag === 1 || taxFlag === true || anyGst));
+    setIsCommission(commissionFlag === 1 || commissionFlag === true || commissionFromTotal);
+    saleTouchGenRef.current = cartGenRef.current;
+  };
+
   const loadHold = async (row: any, mode: 'bill' | 'edit' = 'bill') => {
-    const res: any = await api.holdDetails(row.id);
-    const items: any[] = res?.data || [];
-    setLines(
-      items.map((item, idx) => ({
-        key: idx + 1,
-        productId: item.productId,
-        code: item.code,
-        name: item.name,
-        qty: item.qty,
-        displayQty: item.qty,
-        displayUnit: item.unitName || '',
-        price: item.price,
-        discType: 1,
-        discInput: item.discount,
-        discount: item.discount,
-        commissionPer: item.commission || 0,
-        commission: (item.commission || 0) * item.qty,
-        total: item.total,
-        batchId: item.batchId,
-      }))
-    );
-    setLineKey(items.length + 1);
-    setQuotationId(row.id);
-    setHoldNo(row.billDisplay || '');
-    setCustomerName(dashToEmpty(row.customerName));
-    setCustomerPhone(dashToEmpty(row.customerPhone));
-    setCustomerId(row.customerId || 0);
-    setExtraDisc(String(row.extraDiscount || 0));
+    const holdId = Number(row?.id ?? row?.quotId ?? 0);
+    if (!holdId) {
+      toast.error('Could not identify hold');
+      return;
+    }
+    const holdMeta = {
+      billDisplay: row.billDisplay || '',
+      customerName: row.customerName,
+      customerPhone: row.customerPhone,
+      customerId: row.customerId || 0,
+      extraDiscount: row.extraDiscount || 0,
+      isTaxBill: row.isTaxBill,
+      isCommission: row.isCommission,
+    };
+    if (loadHoldBusyIdRef.current === holdId) return;
+    loadHoldBusyIdRef.current = holdId;
+    const seq = ++loadHoldSeqRef.current;
+    const loadSession = billSessionRef.current;
+    const lineStamp = linesStampRef.current;
+    editingHoldIdRef.current = holdId;
+    setQuotationId(holdId);
+    setHoldNo(holdMeta.billDisplay);
+    applyHoldForm(holdMeta, []);
     setHoldOpen(false);
-    toast.info(mode === 'edit' ? `Editing hold ${row.billDisplay}` : 'Hold loaded into bill');
+
+    let items: any[];
+    let res: any;
+    try {
+      res = await api.holdDetails(holdId);
+      if (seq !== loadHoldSeqRef.current) return;
+      if (loadSession !== billSessionRef.current) return;
+      items = holdLineItems(res);
+      if (!items.length) {
+        toast.error('Hold has no line items');
+        if (loadSession === billSessionRef.current && editingHoldIdRef.current === holdId) {
+          clearHoldTracking();
+        }
+        return;
+      }
+    } catch (err: any) {
+      if (seq !== loadHoldSeqRef.current) return;
+      toast.error(err?.response?.data?.data?.error || err?.message || 'Could not load hold');
+      if (loadSession === billSessionRef.current && editingHoldIdRef.current === holdId) {
+        clearHoldTracking();
+      }
+      return;
+    } finally {
+      if (loadHoldBusyIdRef.current === holdId) loadHoldBusyIdRef.current = 0;
+    }
+
+    const holdStillCurrent = () =>
+      seq === loadHoldSeqRef.current
+      && loadSession === billSessionRef.current
+      && lineStamp === linesStampRef.current
+      && editingHoldIdRef.current === holdId;
+    if (!holdStillCurrent()) return;
+
+    autoPay.current = false;
+    setSavedNo('');
+    setEditBillId(0);
+    setEditBillNo('');
+    setOrderId(0);
+    const mapped = items.map((item, idx) => ({
+      key: idx + 1,
+      productId: item.productId,
+      code: item.code,
+      name: item.name,
+      qty: item.qty,
+      displayQty: item.qty,
+      displayUnit: item.unitName || '',
+      price: item.price,
+      discType: 1,
+      discInput: item.discount,
+      discount: item.discount,
+      commissionPer: item.commission || 0,
+      commission: (item.commission || 0) * item.qty,
+      total: item.total,
+      batchId: item.batchId,
+    }));
+    setLines((prev) => (holdStillCurrent() ? mapped : prev));
+    if (!holdStillCurrent()) return;
+
+    setLineKey(items.length + 1);
+    editingHoldIdRef.current = holdId;
+    setQuotationId(holdId);
+    setHoldNo(holdMeta.billDisplay);
+    const header = res?.data && !Array.isArray(res.data) ? { ...holdMeta, ...res.data } : holdMeta;
+    if (holdStillCurrent()) applyHoldForm(header, items);
+    toast.success(mode === 'edit' ? `Editing hold ${holdMeta.billDisplay}` : 'Hold loaded into bill');
   };
 
   const printHoldDoc = async (id: number) => {
@@ -772,17 +1059,66 @@ const BillingPage: React.FC = () => {
     setHistory(res?.data || []);
   };
 
-  const newBill = () => {
-    if (editBillId) {
-      navigate(routerPathNames.admin.monthlyBills);
-      return;
+  const resetBillingScreen = () => {
+    const session = billSessionRef.current + 1;
+    billSessionRef.current = session;
+    billStampRef.current = session;
+    setBillStamp(session);
+    setSavedNo('');
+    setSavedStamp(-1);
+    cartGenRef.current += 1;
+    linesStampRef.current += 1;
+    loadHoldSeqRef.current += 1;
+    editingHoldIdRef.current = 0;
+    autoPay.current = true;
+    setLines([]);
+    setLineKey(1);
+    applySaleDefaults();
+    setPayEpoch((n) => n + 1);
+    setSearch('');
+    setNameHits([]);
+    setPending(null);
+    setQty('1');
+    setPrice('');
+    setUnitSel('');
+    setStock(null);
+    setSaving(false);
+    setHolding(false);
+    holdSavingRef.current = false;
+    loadHoldBusyIdRef.current = 0;
+    saleTouchGenRef.current = -1;
+    setSavedNo('');
+    clearHoldTracking();
+    setSaveOpen(false);
+    setKeysOpen(false);
+    setOrderOpen(false);
+    setHoldOpen(false);
+    setDupeOpen(false);
+    setHistory(null);
+    setHistoryName('');
+    setA4Bill(null);
+    setOrderId(0);
+    setDupeNo('');
+    setMenuCategory(0);
+    setMenuQuery('');
+    setEditBillId(0);
+    setEditBillNo('');
+    setCancelOpen(false);
+    setCancelReason('');
+    setCancelling(false);
+    if (searchParams.get('edit')) {
+      navigate(routerPathNames.billing, { replace: true });
     }
-    window.location.reload();
+    window.setTimeout(() => searchRef.current?.focus(), 0);
+  };
+
+  const newBill = () => {
+    resetBillingScreen();
   };
 
   const closeSave = () => {
     setSaveOpen(false);
-    if (savedNo) newBill();
+    if (savedNo) resetBillingScreen();
   };
 
   const cancelEditedBill = async () => {
@@ -820,7 +1156,7 @@ const BillingPage: React.FC = () => {
         : e.code === 'KeyP' ? 'p'
         : e.code === 'KeyC' ? 'c'
         : e.key.toLowerCase();
-      if (k === 'o') { e.preventDefault(); if (!editBillId) saveHold(); }
+      if (k === 'o') { e.preventDefault(); if (!editBillId && !holdSavingRef.current) void saveHold(); }
       else if (k === 'r') { e.preventDefault(); newBill(); }
       else if (k === 's') { e.preventDefault(); openSave(); }
       else if (k === 'b') { e.preventDefault(); saveBill(); }
@@ -944,18 +1280,18 @@ const BillingPage: React.FC = () => {
                 <button className="pos-btn pos-btn-outline" type="button" onClick={openDupe}>DUP</button>
                 <button className="pos-btn pos-btn-outline" type="button" onClick={newBill}>REFRESH</button>
               </div>
-              {(savedNo || editBillNo || holdNo) && (
+              {(showSavedBill || editBillNo || showHoldBadge) && (
                 <div className="pos-billno" style={{ margin: '4px 0 8px' }}>
-                  {savedNo || editBillNo ? `Bill No - ${savedNo || editBillNo}` : ''}{holdNo ? ` Hold - ${holdNo}` : ''}
+                  {showSavedBill || editBillNo ? `Bill No - ${showSavedBill ? savedNo : editBillNo}` : ''}{showHoldBadge ? ` Hold - ${holdNo}` : ''}
                 </div>
               )}
               <button
-                className={`cafe-place${savedNo && !editBillId ? ' saved' : ''}`}
+                className={`cafe-place${showSavedBill ? ' saved' : ''}`}
                 type="button"
                 onClick={openSave}
               >
                 <i className="fas fa-check-circle" />
-                {savedNo && !editBillId ? 'Bill Saved' : editBillId ? 'Update Bill' : 'Place Order'}
+                {showSavedBill ? 'Bill Saved' : editBillId ? 'Update Bill' : 'Place Order'}
               </button>
             </div>
           </aside>
@@ -1081,11 +1417,11 @@ const BillingPage: React.FC = () => {
                 </button>
                 <button className="pos-btn pos-btn-outline" type="button" onClick={openDupe}>DUP</button>
                 <button className="pos-btn pos-btn-outline" type="button" title="Alt+R" onClick={newBill}>REFRESH</button>
-                <button className={`pos-btn ${savedNo && !editBillId ? 'pos-btn-saved' : 'pos-btn-navy'}`} type="button" title="Alt+S" onClick={openSave}>
-                  {savedNo && !editBillId ? 'BILL SAVED' : editBillId ? 'UPDATE' : 'SAVE'}
+                <button className={`pos-btn ${showSavedBill ? 'pos-btn-saved' : 'pos-btn-navy'}`} type="button" title="Alt+S" onClick={openSave}>
+                  {showSavedBill ? 'BILL SAVED' : editBillId ? 'UPDATE' : 'SAVE'}
                 </button>
-                {(savedNo || editBillNo) && <div className="pos-billno">Bill No - {savedNo || editBillNo}</div>}
-                {holdNo && <div className="pos-billno">Hold - {holdNo}</div>}
+                {(showSavedBill || editBillNo) && <div className="pos-billno">Bill No - {showSavedBill ? savedNo : editBillNo}</div>}
+                {showHoldBadge && <div className="pos-billno">Hold - {holdNo}</div>}
                 {orderId > 0 && <div className="pos-billno">Order loaded</div>}
               </div>
             </div>
@@ -1120,147 +1456,205 @@ const BillingPage: React.FC = () => {
       {saveOpen && (
         <div className="pos-modal-back" onClick={closeSave}>
           <div className="pos-modal pos-save-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="pos-modal-head">
+            <div className="pos-save-head">
               <h4>{editBillId ? `Update Bill #${editBillNo}` : 'Save Bill'}</h4>
-              <button className="pos-btn pos-btn-outline" type="button" title="Alt+C" onClick={closeSave}>Close</button>
+              <div className="pos-save-head-amt" title="Amount to collect">
+                <span>Payable</span>
+                <strong>{rupee(payable)}</strong>
+              </div>
             </div>
-            <div className="pos-row" style={{ marginBottom: 12 }}>
-              <div className="pos-fg" style={{ flex: 1.6, minWidth: 130 }}>
-                <span className="pos-lbl">Customer Name</span>
-                <input
-                  className="pos-inp pos-inp-lg"
-                  value={customerName}
-                  placeholder="Customer name"
-                  onChange={(e) => {
-                    setCustomerName(e.target.value);
-                    setCustomerId(0);
-                    searchCustomers(e.target.value);
-                  }}
-                />
-                {customerHits.length > 0 && (
-                  <div className="pos-suggest">
-                    {customerHits.map((c) => (
-                      <button key={c.id} type="button" onClick={() => pickCustomer(c)}>
-                        {c.name} {c.phone && c.phone !== '-' ? `· ${c.phone}` : ''}
-                      </button>
-                    ))}
-                  </div>
+
+            <div className="pos-save-body">
+              <p className="pos-save-section-label">Customer</p>
+              <div className="pos-save-row pos-save-customer-row">
+                <div className="pos-fg pos-save-customer-name">
+                  <span className={`pos-lbl ${needsCustomerForDue ? 'pos-lbl-warn' : ''}`}>
+                    Customer{needsCustomerForDue ? ' *' : ''}
+                  </span>
+                  <input
+                    className={`pos-inp ${needsCustomerForDue ? 'pos-inp-warn' : ''}`}
+                    value={customerName}
+                    autoComplete="off"
+                    placeholder="Name (required if due)"
+                    role="combobox"
+                    aria-expanded={custField === 'name' && customerHits.length > 0}
+                    aria-autocomplete="list"
+                    onChange={(e) => {
+                      markSaleDraft();
+                      setCustomerName(e.target.value);
+                      setCustomerId(0);
+                      searchCustomers(e.target.value, undefined, 'name');
+                    }}
+                    onKeyDown={onCustomerKey('name')}
+                  />
+                  {customerSuggest('name')}
+                </div>
+                <div className="pos-fg">
+                  <span className="pos-lbl">Phone</span>
+                  <input
+                    ref={custPhoneRef}
+                    className="pos-inp"
+                    value={customerPhone}
+                    autoComplete="off"
+                    placeholder="Phone"
+                    role="combobox"
+                    aria-expanded={custField === 'phone' && customerHits.length > 0}
+                    aria-autocomplete="list"
+                    onChange={(e) => {
+                      markSaleDraft();
+                      setCustomerPhone(e.target.value);
+                      setCustomerId(0);
+                      searchCustomers(undefined, e.target.value, 'phone');
+                    }}
+                    onKeyDown={onCustomerKey('phone')}
+                  />
+                  {customerSuggest('phone')}
+                </div>
+                <div className="pos-save-toggles">
+                  <label className={`pos-tog pos-tog-compact ${isTaxBill ? 'pos-tog-on' : ''}`}>
+                    <input ref={taxBillRef} type="checkbox" checked={isTaxBill} onChange={(e) => { markSaleDraft(); setIsTaxBill(e.target.checked); }} />
+                    Tax bill
+                  </label>
+                  <label className={`pos-tog pos-tog-compact ${isCommission ? 'pos-tog-on' : ''}`}>
+                    <input type="checkbox" checked={isCommission} onChange={(e) => { markSaleDraft(); setIsCommission(e.target.checked); }} />
+                    Commission
+                  </label>
+                </div>
+              </div>
+
+              {exchangePoint > 0 && (
+                <div className="pos-save-inline pos-save-inline-info">
+                  <span>Exchange {rupee(exchangePoint)}</span>
+                  <button
+                    className="pos-btn pos-btn-sm"
+                    type="button"
+                    onClick={() => {
+                      const use = Math.min(exchangePoint, payable);
+                      setExtraDisc(String(use));
+                      setExchangeUsed(use);
+                      setBypassCap(true);
+                    }}
+                  >
+                    Apply
+                  </button>
+                </div>
+              )}
+
+              <p className="pos-save-section-label">Bill total</p>
+              <div className="pos-save-totals-bar">
+                <div className="pos-save-chip">
+                  <span>Price</span>
+                  <strong>{money(totals.priceTotal)}</strong>
+                </div>
+                <div className="pos-save-chip">
+                  <span>Disc</span>
+                  <strong>{money(totals.discountTotal)}</strong>
+                </div>
+                <div className="pos-save-chip">
+                  <span>Comm</span>
+                  <strong>{money(totals.commissionTotal)}</strong>
+                </div>
+                <div className="pos-save-chip">
+                  <span>Grand</span>
+                  <strong>{money(totals.grandTotal)}</strong>
+                </div>
+                <div className="pos-save-chip pos-save-chip-edit">
+                  <span>Extra</span>
+                  <input
+                    className="pos-inp pos-save-extra-inp"
+                    value={extraDisc}
+                    autoComplete="off"
+                    onChange={(e) => { markSaleDraft(); setExtraDisc(e.target.value); setBypassCap(false); }}
+                  />
+                </div>
+                <div className="pos-save-chip pos-save-chip-pay pos-save-chip-pay-desk">
+                  <span>Payable</span>
+                  <strong>{rupee(payable)}</strong>
+                </div>
+              </div>
+
+              <p className="pos-save-section-label">Payment</p>
+              <div className="pos-save-row pos-save-pay-row">
+                <div className="pos-fg">
+                  <span className="pos-lbl pos-lbl-em">Mode</span>
+                  <select className="pos-sel pos-sel-em" value={mode} onChange={(e) => { autoPay.current = true; setMode(e.target.value); }}>
+                    <option value="1">Cash</option>
+                    <option value="2">Bank</option>
+                    <option value="3">Mixed</option>
+                  </select>
+                </div>
+                <div className="pos-fg">
+                  <span className="pos-lbl pos-lbl-em">Bank type</span>
+                  <select className="pos-sel pos-sel-em" value={payType} disabled={mode === '1'} onChange={(e) => setPayType(e.target.value)}>
+                    <option value="1">UPI</option>
+                    <option value="2">Debit</option>
+                    <option value="3">Credit</option>
+                    <option value="4">NEFT</option>
+                    <option value="5">Wallet</option>
+                  </select>
+                </div>
+                <div className="pos-fg">
+                  <span className="pos-lbl pos-lbl-em">Cash</span>
+                  <input
+                    className={`pos-inp pos-inp-pay ${mode === '2' ? 'pos-inp-muted' : ''}`}
+                    value={cashPaid}
+                    disabled={mode === '2'}
+                    onChange={(e) => { autoPay.current = false; setCashPaid(e.target.value); }}
+                  />
+                </div>
+                <div className="pos-fg">
+                  <span className="pos-lbl pos-lbl-em">Bank</span>
+                  <input
+                    className={`pos-inp pos-inp-pay ${mode === '1' ? 'pos-inp-muted' : ''}`}
+                    value={bankPaid}
+                    disabled={mode === '1'}
+                    onChange={(e) => { autoPay.current = false; setBankPaid(e.target.value); }}
+                  />
+                </div>
+                <div className={`pos-save-due-chip ${dueAmt > 0.001 ? 'has-due' : paidOver ? 'over-paid' : 'settled'}`}>
+                  <span>Due</span>
+                  <strong>{money(dueAmt)}</strong>
+                </div>
+              </div>
+
+              {paidOver && (
+                <p className="pos-save-inline pos-save-inline-error">Paid exceeds payable ({money(payable)}).</p>
+              )}
+              {needsCustomerForDue && !paidOver && (
+                <p className="pos-save-inline pos-save-inline-warn">Enter customer name for due {money(dueAmt)}.</p>
+              )}
+              {dueAmt > 0.001 && !paidOver && !needsCustomerForDue && (
+                <p className="pos-save-inline pos-save-inline-warn">Due {money(dueAmt)} → {customerName.trim() || 'customer'}.</p>
+              )}
+            </div>
+
+            <div className="pos-save-footer">
+              <div className="pos-save-meta">
+                {showSavedBill && <span className="pos-billno">Bill No — {savedNo}</span>}
+                {showHoldBadge && <span className="pos-billno">Hold — {holdNo}</span>}
+              </div>
+              <div className="pos-acts pos-acts-end">
+                {editBillId > 0 && (
+                  <button className="pos-btn pos-btn-danger" type="button" onClick={() => { setCancelReason(''); setCancelOpen(true); }}>
+                    Cancel bill
+                  </button>
                 )}
-              </div>
-              <div className="pos-fg" style={{ flex: 1, minWidth: 120 }}>
-                <span className="pos-lbl">Phone No</span>
-                <input
-                  className="pos-inp pos-inp-lg"
-                  value={customerPhone}
-                  placeholder="Phone number"
-                  onChange={(e) => {
-                    setCustomerPhone(e.target.value);
-                    searchCustomers(undefined, e.target.value);
-                  }}
-                />
-              </div>
-              <label className="pos-tog">
-                <input type="checkbox" checked={isTaxBill} onChange={(e) => setIsTaxBill(e.target.checked)} />
-                Tax Bill
-              </label>
-              <label className="pos-tog">
-                <input type="checkbox" checked={isCommission} onChange={(e) => setIsCommission(e.target.checked)} />
-                Commission
-              </label>
-            </div>
-            {exchangePoint > 0 && (
-              <div className="pos-banner" style={{ marginBottom: 12 }}>
-                Exchange Points: ₹{exchangePoint}
+                <button className="pos-btn pos-btn-outline" type="button" title="Alt+C" onClick={closeSave}>Close</button>
+                {!editBillId && (
+                  <button className="pos-btn pos-btn-outline" type="button" title="Alt+O" disabled={holding} onClick={() => void saveHold()}>
+                    {holding ? (isEditingHold ? 'Updating…' : 'Holding…') : (isEditingHold ? 'Update hold' : 'Hold')}
+                  </button>
+                )}
+                <button className="pos-btn pos-btn-outline" type="button" title="Alt+P" onClick={() => printBill(savedNo || editBillNo || dupeNo)}>Print</button>
                 <button
-                  className="pos-btn"
-                  type="button"
-                  onClick={() => {
-                    const use = Math.min(exchangePoint, payable);
-                    setExtraDisc(String(use));
-                    setExchangeUsed(use);
-                    setBypassCap(true);
-                  }}
+                  className={`pos-btn pos-save-primary ${showSavedBill ? 'pos-btn-saved' : ''}`}
+                  disabled={saving || paidOver || needsCustomerForDue || showSavedBill}
+                  title="Alt+B"
+                  onClick={saveBill}
                 >
-                  Use as Discount
+                  {showSavedBill ? 'Bill saved' : saving ? (editBillId ? 'Updating…' : 'Saving…') : (editBillId ? 'Update bill' : 'Save bill')}
                 </button>
               </div>
-            )}
-            <div className="pos-grid">
-              <div className="pos-fg"><span className="pos-lbl">Price Total</span><input className="pos-inp" readOnly value={money(totals.priceTotal)} /></div>
-              <div className="pos-fg"><span className="pos-lbl">Discount</span><input className="pos-inp" readOnly value={money(totals.discountTotal)} /></div>
-              <div className="pos-fg"><span className="pos-lbl">Commission</span><input className="pos-inp" readOnly value={money(totals.commissionTotal)} /></div>
-              <div className="pos-fg"><span className="pos-lbl">Grand Total</span><input className="pos-inp" readOnly value={money(totals.grandTotal)} /></div>
-              <div className="pos-fg"><span className="pos-lbl">Extra Disc</span><input className="pos-inp" value={extraDisc} onChange={(e) => { setExtraDisc(e.target.value); setBypassCap(false); }} /></div>
-              <div className="pos-fg"><span className="pos-lbl pos-payable">PAYABLE</span><input className="pos-inp pos-inp-payable" readOnly value={money(payable)} /></div>
-            </div>
-            <div className="pos-pay" style={{ marginTop: 10 }}>
-              <div className="pos-fg">
-                <span className="pos-lbl">Pay Mode</span>
-                <select className="pos-sel" value={mode} onChange={(e) => { autoPay.current = true; setMode(e.target.value); }}>
-                  <option value="1">Cash</option>
-                  <option value="2">Bank</option>
-                  <option value="3">Mixed</option>
-                </select>
-              </div>
-              <div className="pos-fg">
-                <span className="pos-lbl">Pay Type</span>
-                <select className="pos-sel" value={payType} disabled={mode === '1'} onChange={(e) => setPayType(e.target.value)}>
-                  <option value="1">UPI</option>
-                  <option value="2">Debit Card</option>
-                  <option value="3">Credit Card</option>
-                  <option value="4">Net Banking</option>
-                  <option value="5">Wallet</option>
-                </select>
-              </div>
-              <div className="pos-fg">
-                <span className="pos-lbl">Cash Paid</span>
-                <input
-                  className="pos-inp"
-                  value={cashPaid}
-                  disabled={mode === '2'}
-                  onChange={(e) => { autoPay.current = false; setCashPaid(e.target.value); }}
-                />
-              </div>
-              <div className="pos-fg">
-                <span className="pos-lbl">Bank Paid</span>
-                <input
-                  className="pos-inp"
-                  value={bankPaid}
-                  disabled={mode === '1'}
-                  onChange={(e) => { autoPay.current = false; setBankPaid(e.target.value); }}
-                />
-              </div>
-              <div className="pos-fg">
-                <span className="pos-lbl">Due / Balance</span>
-                <input className="pos-inp" readOnly value={money(dueAmt)} />
-              </div>
-            </div>
-            {paidOver && (
-              <div className="pos-banner" style={{ marginTop: 8, background: '#fee2e2', color: '#991b1b' }}>
-                Paid amount cannot be more than payable ({money(payable)}).
-              </div>
-            )}
-            {dueAmt > 0.001 && !paidOver && (
-              <div className="pos-banner" style={{ marginTop: 8, background: '#fff7ed', color: '#9a3412' }}>
-                Due {money(dueAmt)} will be added to the customer account.
-              </div>
-            )}
-            <div className="pos-acts pos-acts-end" style={{ marginTop: 14 }}>
-              {editBillId && (
-                <button className="pos-btn pos-btn-danger" type="button" onClick={() => { setCancelReason(''); setCancelOpen(true); }}>
-                  CANCEL BILL
-                </button>
-              )}
-              <button className="pos-btn pos-btn-outline" type="button" title="Alt+C" onClick={closeSave}>CLOSE</button>
-              {!editBillId && (
-                <button className="pos-btn pos-btn-outline" type="button" title="Alt+O" onClick={saveHold}>HOLD</button>
-              )}
-              <button className="pos-btn pos-btn-outline" type="button" title="Alt+P" onClick={() => printBill(savedNo || editBillNo || dupeNo)}>PRINT</button>
-              <button className={`pos-btn ${savedNo && !editBillId ? 'pos-btn-saved' : 'pos-btn-navy'}`} disabled={saving || (!!savedNo && !editBillId)} title="Alt+B" onClick={saveBill}>
-                {savedNo && !editBillId ? 'BILL SAVED' : saving ? (editBillId ? 'Updating...' : 'Saving...') : (editBillId ? 'UPDATE' : 'SAVE')}
-              </button>
-              {savedNo && <div className="pos-billno">Bill No - {savedNo}</div>}
-              {holdNo && <div className="pos-billno">Hold - {holdNo}</div>}
             </div>
           </div>
         </div>
@@ -1341,9 +1735,30 @@ const BillingPage: React.FC = () => {
                     <td>{h.payable}</td><td>{h.date} {h.time}</td>
                     <td>
                       <div className="pos-acts">
-                        <button className="pos-btn" type="button" onClick={() => loadHold(h, 'edit')}>Edit</button>
-                        <button className="pos-btn pos-btn-outline" type="button" onClick={() => printHoldDoc(h.id)}>Print</button>
-                        <button className="pos-btn" type="button" onClick={() => loadHold(h, 'bill')}>Bill</button>
+                        <button
+                          className="pos-btn"
+                          type="button"
+                          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                          onClick={(e) => { e.stopPropagation(); void loadHold(h, 'edit'); }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="pos-btn pos-btn-outline"
+                          type="button"
+                          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                          onClick={(e) => { e.stopPropagation(); void printHoldDoc(h.id); }}
+                        >
+                          Print
+                        </button>
+                        <button
+                          className="pos-btn"
+                          type="button"
+                          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                          onClick={(e) => { e.stopPropagation(); void loadHold(h, 'bill'); }}
+                        >
+                          Bill
+                        </button>
                         <button className="pos-btn pos-btn-outline" type="button" onClick={() => api.cancelHold(h.id).then(openHolds)}>Cancel</button>
                       </div>
                     </td>

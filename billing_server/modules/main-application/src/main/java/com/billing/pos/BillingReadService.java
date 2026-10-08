@@ -2,6 +2,8 @@ package com.billing.pos;
 
 import com.billing.admin.AdminService;
 import com.billing.admin.dto.CompanyDetailsData;
+import com.billing.common.JdbcPageHelper;
+import com.billing.core.pagination.PageResult;
 import com.billing.master.dto.NamedItemData;
 import com.billing.pos.dto.BillingMenuData;
 import com.billing.pos.dto.BillingOptionsData;
@@ -12,11 +14,14 @@ import com.billing.pos.dto.PrintBillData;
 import com.billing.pos.dto.ProductHistoryData;
 import com.billing.pos.dto.ProductLookupData;
 import com.billing.pos.dto.QuotationData;
+import com.billing.pos.dto.QuotationEditData;
 import com.billing.pos.dto.QuotationLineData;
 import com.billing.pos.dto.RecentBillData;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+
+import jakarta.annotation.PostConstruct;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +31,28 @@ import java.util.List;
 public class BillingReadService {
 
     private final JdbcTemplate jdbcTemplate;
+    private volatile boolean quotationFlagsReady;
+
+    @PostConstruct
+    public void ensureQuotationFlags() {
+        if (quotationFlagsReady) {
+            return;
+        }
+        addQuotationColumn("is_tax_bill", "TINYINT NOT NULL DEFAULT 1");
+        addQuotationColumn("is_commission", "TINYINT NOT NULL DEFAULT 0");
+        quotationFlagsReady = true;
+    }
+
+    private void addQuotationColumn(String name, String definition) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'prod_quotation' AND COLUMN_NAME = ?",
+                Integer.class,
+                name
+        );
+        if (count == null || count == 0) {
+            jdbcTemplate.execute("ALTER TABLE prod_quotation ADD COLUMN " + name + " " + definition);
+        }
+    }
     private final AdminService adminService;
 
     public BillingOptionsData options(Long userId) {
@@ -142,24 +169,66 @@ public class BillingReadService {
     }
 
     public List<QuotationData> quotationList() {
+        ensureQuotationFlags();
         return jdbcTemplate.query(
-                "SELECT id, bill_display, cusName, cusPhn, payable, extraDisc, customerId, date, time " +
+                "SELECT id, bill_display, cusName, cusPhn, payable, extraDisc, customerId, date, time, is_tax_bill, is_commission " +
                         "FROM prod_quotation WHERE is_cancelled = 0 AND is_billed = 0 " +
                         "ORDER BY date DESC, time DESC",
-                (rs, i) -> {
-                    QuotationData row = new QuotationData();
-                    row.setId(rs.getLong("id"));
-                    row.setBillDisplay(rs.getString("bill_display"));
-                    row.setCustomerName(rs.getString("cusName"));
-                    row.setCustomerPhone(rs.getString("cusPhn"));
-                    row.setPayable(rs.getDouble("payable"));
-                    row.setExtraDiscount(rs.getDouble("extraDisc"));
-                    row.setCustomerId(rs.getLong("customerId"));
-                    row.setDate(String.valueOf(rs.getDate("date")));
-                    row.setTime(String.valueOf(rs.getTime("time")));
-                    return row;
-                }
+                (rs, i) -> mapQuotation(rs)
         );
+    }
+
+    public QuotationEditData quotationForEdit(Long quotId) {
+        ensureQuotationFlags();
+        List<QuotationData> headers = jdbcTemplate.query(
+                "SELECT id, bill_display, cusName, cusPhn, payable, extraDisc, customerId, date, time, is_tax_bill, is_commission " +
+                        "FROM prod_quotation WHERE id = ? AND is_cancelled = 0",
+                (rs, i) -> mapQuotation(rs),
+                quotId
+        );
+        if (headers.isEmpty()) {
+            throw new RuntimeException("Hold not found");
+        }
+        QuotationData header = headers.get(0);
+        List<QuotationLineData> lines = quotationDetails(quotId);
+        boolean anyGst = lines.stream().anyMatch(line -> line.getGst() != null && line.getGst() > 0);
+        boolean commissionFromTotal = lines.stream().anyMatch(line -> {
+            double qty = line.getQty() == null ? 0 : line.getQty();
+            double price = line.getPrice() == null ? 0 : line.getPrice();
+            double disc = line.getDiscount() == null ? 0 : line.getDiscount();
+            double total = line.getTotal() == null ? 0 : line.getTotal();
+            return total + 0.05 < (qty * price - disc);
+        });
+        QuotationEditData data = new QuotationEditData();
+        data.setCustomerName(header.getCustomerName());
+        data.setCustomerPhone(header.getCustomerPhone());
+        data.setCustomerId(header.getCustomerId());
+        data.setExtraDiscount(header.getExtraDiscount());
+        int storedTax = header.getIsTaxBill() == null ? 1 : header.getIsTaxBill();
+        data.setIsTaxBill(storedTax == 0 ? 0 : (anyGst || storedTax == 1 ? 1 : 0));
+        int commission = header.getIsCommission() == null ? 0 : header.getIsCommission();
+        if (commission == 0 && commissionFromTotal) {
+            commission = 1;
+        }
+        data.setIsCommission(commission);
+        data.setLines(lines);
+        return data;
+    }
+
+    private QuotationData mapQuotation(java.sql.ResultSet rs) throws java.sql.SQLException {
+        QuotationData row = new QuotationData();
+        row.setId(rs.getLong("id"));
+        row.setBillDisplay(rs.getString("bill_display"));
+        row.setCustomerName(rs.getString("cusName"));
+        row.setCustomerPhone(rs.getString("cusPhn"));
+        row.setPayable(rs.getDouble("payable"));
+        row.setExtraDiscount(rs.getDouble("extraDisc"));
+        row.setCustomerId(rs.getLong("customerId"));
+        row.setDate(String.valueOf(rs.getDate("date")));
+        row.setTime(String.valueOf(rs.getTime("time")));
+        row.setIsTaxBill(rs.getInt("is_tax_bill"));
+        row.setIsCommission(rs.getInt("is_commission"));
+        return row;
     }
 
     public List<QuotationLineData> quotationDetails(Long quotId) {
@@ -190,7 +259,7 @@ public class BillingReadService {
         );
     }
 
-    public List<MonthBillCard> monthBills(int year, int month) {
+    public PageResult<MonthBillCard> monthBills(int year, int month, int page, int size) {
         if (year < 2000 || month < 1 || month > 12) {
             throw new RuntimeException("Select a valid month");
         }
@@ -207,14 +276,16 @@ public class BillingReadService {
         java.time.YearMonth ym = java.time.YearMonth.of(year, month);
         String start = ym.atDay(1).toString();
         String end = ym.atEndOfMonth().toString();
-        return jdbcTemplate.query(
-                "SELECT a.id, a.bill_display, a.payable, a.date, a.time, a.paymentMode, a.is_tax_bill, " +
-                        "IFNULL(c.name, a.cusName) AS customer_name, " +
-                        "IFNULL(c.phone_number, a.cusPhn) AS phone, " +
-                        "IFNULL(c.gstin, '') AS gstin " +
-                        "FROM prod_bill a LEFT JOIN customers c ON c.id = a.customerId " +
-                        "WHERE a.is_cancelled = 0 AND a.date BETWEEN ? AND ? " +
-                        "ORDER BY a.date DESC, a.time DESC, a.id DESC",
+        String sql = "SELECT a.id, a.bill_display, a.payable, a.date, a.time, a.paymentMode, a.is_tax_bill, " +
+                "IFNULL(c.name, a.cusName) AS customer_name, " +
+                "IFNULL(c.phone_number, a.cusPhn) AS phone, " +
+                "IFNULL(c.gstin, '') AS gstin " +
+                "FROM prod_bill a LEFT JOIN customers c ON c.id = a.customerId " +
+                "WHERE a.is_cancelled = 0 AND a.date BETWEEN ? AND ? " +
+                "ORDER BY a.date DESC, a.time DESC, a.id DESC";
+        return JdbcPageHelper.query(
+                jdbcTemplate,
+                sql,
                 (rs, i) -> {
                     MonthBillCard row = new MonthBillCard();
                     row.setBillId(rs.getLong("id"));
@@ -235,7 +306,10 @@ public class BillingReadService {
                     row.setStateLabel(gstStateLabel(gstin));
                     return row;
                 },
-                start, end
+                page,
+                size,
+                start,
+                end
         );
     }
 

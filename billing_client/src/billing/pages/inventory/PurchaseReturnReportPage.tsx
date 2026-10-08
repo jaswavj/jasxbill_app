@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { inventoryApi, invData, invError } from '../../../api/inventory/inventory-api-service';
+import { inventoryApi, invError, invPage } from '../../../api/inventory/inventory-api-service';
+import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import '../master/Master.css';
 import ReportActions from '../account-reports/ReportActions';
 
@@ -25,14 +26,21 @@ const PurchaseReturnReportPage: React.FC = () => {
   const [to, setTo] = useState(today());
   const [supplierId, setSupplierId] = useState('0');
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
-    inventoryApi.suppliers().then((res) => setSuppliers(invData<Supplier[]>(res) || [])).catch(() => undefined);
+    inventoryApi.suppliersAll().then((res) => setSuppliers(invData<Supplier[]>(res) || [])).catch(() => undefined);
   }, []);
 
-  const search = async () => {
+  const search = async (p = 0) => {
     try {
-      setRows(invData<Row[]>(await inventoryApi.returnReport(from, to, supplierId === '0' ? undefined : Number(supplierId))) || []);
+      const pg = invPage<Row>(await inventoryApi.returnReport(
+        from, to, supplierId === '0' ? undefined : Number(supplierId), p, DEFAULT_PAGE_SIZE,
+      ));
+      setRows(pg.items);
+      setTotal(pg.total);
+      setPage(p);
     } catch (err) {
       toast.error(invError(err, 'Could not load report'));
     }
@@ -63,7 +71,7 @@ const PurchaseReturnReportPage: React.FC = () => {
             </select>
           </div>
           <div className="mst-actions">
-            <button className="mst-btn mst-btn-primary" type="button" onClick={search}>Generate</button>
+            <button className="mst-btn mst-btn-primary" type="button" onClick={() => search(0)}>Generate</button>
             <ReportActions
               disabled={!rows}
               filename={`Purchase_Return_${from}_${to}`}
@@ -100,7 +108,7 @@ const PurchaseReturnReportPage: React.FC = () => {
                 {rows.length === 0 && <tr><td colSpan={8} className="mst-empty">No returns in this period.</td></tr>}
                 {rows.map((row, i) => (
                   <tr key={row.id}>
-                    <td>{i + 1}</td>
+                    <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                     <td>{row.returnNo}</td>
                     <td>{row.prno}</td>
                     <td>{row.supplierName}</td>
@@ -113,6 +121,7 @@ const PurchaseReturnReportPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={(p) => search(p)} />
         </div>
       )}
     </div>
