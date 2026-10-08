@@ -8,16 +8,16 @@ import java.util.concurrent.TimeUnit;
  * Sends ESC/POS bytes through Winspool RAW on Windows.
  * Java PrintService / GDI / share paths print a blank slip on these printers.
  */
-final class WinspoolRawPrinter {
+public final class WinspoolRawPrinter {
 
     private WinspoolRawPrinter() {
     }
 
-    static boolean isWindows() {
+    public static boolean isWindows() {
         return System.getProperty("os.name", "").toLowerCase().contains("win");
     }
 
-    static boolean print(String printerName, byte[] data) {
+    public static boolean print(String printerName, byte[] data) {
         if (!isWindows() || printerName == null || printerName.isBlank() || data == null || data.length == 0) {
             return false;
         }

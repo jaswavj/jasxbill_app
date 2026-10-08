@@ -13,4 +13,7 @@ public class CompanyDetailsData {
     private String printerName;
     private String bankDetails;
     private String barcodePrinter;
+    private Integer barcodePerRow;
+    private Integer barcodeWidthMm;
+    private Integer barcodeHeightMm;
 }

@@ -59,6 +59,7 @@ export class MasterApiService {
 
   barcodes = (page = 0, size = 25, q?: string) =>
     this.http.get(`/v1/master/barcodes?${pageQuery(page, size, { q })}`);
+  printBarcodes = (payload: any) => this.http.post('/v1/master/barcodes/print', payload);
 }
 
 export const masterApi = new MasterApiService();

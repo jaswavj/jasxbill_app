@@ -48,11 +48,16 @@ public class AdminService {
     public void init() {
         ensureEditLogTable();
         ensureBillingTypeColumn();
+        addIntColumn("barcode_per_row", 1);
+        addIntColumn("barcode_width_mm", 50);
+        addIntColumn("barcode_height_mm", 30);
     }
 
     public CompanyDetailsData company() {
         List<CompanyDetailsData> rows = jdbcTemplate.query(
-                "SELECT id, shop_name, address, gstin, print_type, IFNULL(billing_type, 1) AS billing_type, printer_name, bank_details, barcode_printer FROM company_details LIMIT 1",
+                "SELECT id, shop_name, address, gstin, print_type, IFNULL(billing_type, 1) AS billing_type, printer_name, bank_details, barcode_printer, " +
+                        "IFNULL(barcode_per_row, 1) AS barcode_per_row, IFNULL(barcode_width_mm, 50) AS barcode_width_mm, " +
+                        "IFNULL(barcode_height_mm, 30) AS barcode_height_mm FROM company_details LIMIT 1",
                 (rs, i) -> {
                     CompanyDetailsData data = new CompanyDetailsData();
                     data.setId(rs.getLong("id"));
@@ -64,6 +69,9 @@ public class AdminService {
                     data.setPrinterName(nz(rs.getString("printer_name")));
                     data.setBankDetails(nz(rs.getString("bank_details")));
                     data.setBarcodePrinter(nz(rs.getString("barcode_printer")));
+                    data.setBarcodePerRow(clamp(rs.getInt("barcode_per_row"), 1, 12, 1));
+                    data.setBarcodeWidthMm(clamp(rs.getInt("barcode_width_mm"), 20, 210, 50));
+                    data.setBarcodeHeightMm(clamp(rs.getInt("barcode_height_mm"), 15, 150, 30));
                     return data;
                 }
         );
@@ -77,6 +85,9 @@ public class AdminService {
             empty.setPrinterName("");
             empty.setBankDetails("");
             empty.setBarcodePrinter("");
+            empty.setBarcodePerRow(1);
+            empty.setBarcodeWidthMm(50);
+            empty.setBarcodeHeightMm(30);
             return empty;
         }
         return rows.get(0);
@@ -101,16 +112,19 @@ public class AdminService {
         String bankDetails = nz(request.getBankDetails()).trim();
         String barcodePrinter = nz(request.getBarcodePrinter()).trim();
         int billingType = normalizeBillingType(request.getBillingType());
+        int barcodePerRow = clamp(request.getBarcodePerRow(), 1, 12, 1);
+        int barcodeWidthMm = clamp(request.getBarcodeWidthMm(), 20, 210, 50);
+        int barcodeHeightMm = clamp(request.getBarcodeHeightMm(), 15, 150, 30);
         Long id = jdbcTemplate.query("SELECT id FROM company_details LIMIT 1", rs -> rs.next() ? rs.getLong(1) : null);
         if (id != null) {
             jdbcTemplate.update(
-                    "UPDATE company_details SET shop_name=?, address=?, gstin=?, print_type=?, billing_type=?, printer_name=?, bank_details=?, barcode_printer=? WHERE id=?",
-                    shopName, address, gstin, printType, billingType, printerName, bankDetails, barcodePrinter, id
+                    "UPDATE company_details SET shop_name=?, address=?, gstin=?, print_type=?, billing_type=?, printer_name=?, bank_details=?, barcode_printer=?, barcode_per_row=?, barcode_width_mm=?, barcode_height_mm=? WHERE id=?",
+                    shopName, address, gstin, printType, billingType, printerName, bankDetails, barcodePrinter, barcodePerRow, barcodeWidthMm, barcodeHeightMm, id
             );
         } else {
             jdbcTemplate.update(
-                    "INSERT INTO company_details (shop_name, address, gstin, print_type, billing_type, printer_name, bank_details, barcode_printer) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    shopName, address, gstin, printType, billingType, printerName, bankDetails, barcodePrinter
+                    "INSERT INTO company_details (shop_name, address, gstin, print_type, billing_type, printer_name, bank_details, barcode_printer, barcode_per_row, barcode_width_mm, barcode_height_mm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    shopName, address, gstin, printType, billingType, printerName, bankDetails, barcodePrinter, barcodePerRow, barcodeWidthMm, barcodeHeightMm
             );
         }
     }
@@ -860,6 +874,28 @@ public class AdminService {
 
     private int normalizeBillingType(Integer billingType) {
         return billingType != null && billingType == 2 ? 2 : 1;
+    }
+
+    private void addIntColumn(String name, int def) {
+        try {
+            Integer count = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'company_details' AND COLUMN_NAME = ?",
+                    Integer.class,
+                    name
+            );
+            if (count == null || count == 0) {
+                jdbcTemplate.execute("ALTER TABLE company_details ADD COLUMN " + name + " int NOT NULL DEFAULT " + def);
+            }
+        } catch (Exception ignored) {
+            // existing databases keep defaults until the column can be added
+        }
+    }
+
+    private int clamp(Integer value, int min, int max, int fallback) {
+        int n = value == null ? fallback : value;
+        if (n < min) return min;
+        if (n > max) return max;
+        return n;
     }
 
     private void ensureEditLogTable() {

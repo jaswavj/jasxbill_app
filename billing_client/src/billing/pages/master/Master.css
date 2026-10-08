@@ -357,9 +357,58 @@
   color: var(--color-text-muted);
 }
 
+.mst-grid-barcode {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 12px;
+  align-items: start;
+  width: 100%;
+  min-width: 0;
+}
+
+.mst-grid-barcode > .mst-card.bc-queue-card {
+  overflow: visible;
+  position: sticky;
+  top: 12px;
+}
+
+.bc-name {
+  font-weight: 700;
+}
+
+.bc-queue {
+  display: grid;
+  grid-template-columns: 1fr 72px 28px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.bc-qty {
+  height: 32px;
+}
+
+.mst-col-idx {
+  width: 48px;
+}
+
+.mst-col-code {
+  width: 120px;
+}
+
+.mst-col-num {
+  width: 88px;
+}
+
+.mst-col-act {
+  width: 92px;
+}
+
 @media (max-width: 900px) {
   .mst-grid,
-  .mst-grid-wide {
+  .mst-grid-wide,
+  .mst-grid-barcode {
     grid-template-columns: 1fr;
   }
 
