@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { masterApi, masterData, masterError, masterPage } from '../../../api/master/master-api-service';
 import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import './Master.css';
+import '../users/Users.css';
 
 type Item = { id: number; name: string; code: string; mrp: number; unit: string };
 type QueueItem = Item & { qty: number };
@@ -15,6 +16,7 @@ const BarcodePage: React.FC = () => {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
 
   const refresh = async (p = page) => {
     try {
@@ -194,6 +196,9 @@ const BarcodePage: React.FC = () => {
     <div className="mst-page">
       <h2 className="mst-title">
         <i className="fas fa-barcode" /> Bar Code
+        <button className="mst-icon-btn bc-notes-btn" type="button" title="Label printer notes" onClick={() => setNotesOpen(true)}>
+          <i className="fas fa-sticky-note" />
+        </button>
       </h2>
       <div className="mst-grid-barcode">
         <div className="mst-card">
@@ -290,6 +295,30 @@ const BarcodePage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {notesOpen && (
+        <div className="usr-modal" onClick={() => setNotesOpen(false)}>
+          <div className="usr-modal-box bc-notes-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="mst-card-h">
+              <span>Label printer notes</span>
+              <button className="mst-icon-btn" type="button" onClick={() => setNotesOpen(false)}>
+                <i className="fas fa-times" />
+              </button>
+            </div>
+            <div className="mst-card-b">
+              <div className="bc-notes-row"><span>Orientation</span><strong>Portrait</strong></div>
+              <div className="bc-notes-row"><span>Type</span><strong>Die-cut label</strong></div>
+              <div className="bc-notes-row"><span>Width</span><strong>101.6 mm</strong></div>
+              <div className="bc-notes-row"><span>Height</span><strong>25.0 mm</strong></div>
+              <div className="bc-notes-row"><span>Liner width left</span><strong>1.3 mm</strong></div>
+              <div className="bc-notes-row"><span>Liner width right</span><strong>1.3 mm</strong></div>
+              <p className="mst-note" style={{ marginTop: 12 }}>
+                Use these values in the Windows barcode printer driver / label stock settings.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

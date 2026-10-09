@@ -405,6 +405,36 @@
   width: 92px;
 }
 
+.bc-notes-btn {
+  margin-left: 4px;
+  font-size: 1rem;
+  color: #d69e2e;
+}
+
+.bc-notes-modal {
+  max-width: 420px;
+}
+
+.bc-notes-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 10%, transparent);
+  font-size: 13.5px;
+}
+
+.bc-notes-row span {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.bc-notes-row strong {
+  color: var(--color-text);
+  font-weight: 800;
+  text-align: right;
+}
+
 @media (max-width: 900px) {
   .mst-grid,
   .mst-grid-wide,
