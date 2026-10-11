@@ -40,6 +40,7 @@ public class BillingReadService {
         }
         addQuotationColumn("is_tax_bill", "TINYINT NOT NULL DEFAULT 1");
         addQuotationColumn("is_commission", "TINYINT NOT NULL DEFAULT 0");
+        addBillColumn("exchPoint", "DOUBLE(10,3) NOT NULL DEFAULT 0.000");
         quotationFlagsReady = true;
     }
 
@@ -51,6 +52,21 @@ public class BillingReadService {
         );
         if (count == null || count == 0) {
             jdbcTemplate.execute("ALTER TABLE prod_quotation ADD COLUMN " + name + " " + definition);
+        }
+    }
+
+    private void addBillColumn(String name, String definition) {
+        try {
+            Integer count = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'prod_bill' AND COLUMN_NAME = ?",
+                    Integer.class,
+                    name
+            );
+            if (count == null || count == 0) {
+                jdbcTemplate.execute("ALTER TABLE prod_bill ADD COLUMN " + name + " " + definition);
+            }
+        } catch (Exception ignored) {
+            // existing databases keep 0 until the column can be added
         }
     }
     private final AdminService adminService;
@@ -277,9 +293,12 @@ public class BillingReadService {
         String start = ym.atDay(1).toString();
         String end = ym.atEndOfMonth().toString();
         String sql = "SELECT a.id, a.bill_display, a.payable, a.date, a.time, a.paymentMode, a.is_tax_bill, " +
+                "IFNULL(a.exchPoint, 0) AS exch_point, " +
                 "IFNULL(c.name, a.cusName) AS customer_name, " +
                 "IFNULL(c.phone_number, a.cusPhn) AS phone, " +
-                "IFNULL(c.gstin, '') AS gstin " +
+                "IFNULL(c.gstin, '') AS gstin, " +
+                "EXISTS(SELECT 1 FROM prod_bill_details d WHERE d.bill_id = a.id AND IFNULL(d.is_exchanged,0)=1) AS exchanged, " +
+                "EXISTS(SELECT 1 FROM prod_bill_details d WHERE d.bill_id = a.id AND IFNULL(d.is_exchanged,0)=2) AS returned " +
                 "FROM prod_bill a LEFT JOIN customers c ON c.id = a.customerId " +
                 "WHERE a.is_cancelled = 0 AND a.date BETWEEN ? AND ? " +
                 "ORDER BY a.date DESC, a.time DESC, a.id DESC";
@@ -297,8 +316,11 @@ public class BillingReadService {
                     row.setDate(String.valueOf(rs.getDate("date")));
                     row.setTime(String.valueOf(rs.getTime("time")));
                     row.setPayable(rs.getDouble("payable"));
+                    row.setExchPoint(rs.getDouble("exch_point"));
                     row.setPaymentMode(rs.getInt("paymentMode"));
                     row.setIsTaxBill(rs.getInt("is_tax_bill"));
+                    row.setExchanged(rs.getInt("exchanged") == 1);
+                    row.setReturned(rs.getInt("returned") == 1);
                     String gstin = nz(rs.getString("gstin"));
                     if (gstin.isEmpty()) {
                         gstin = fallbackGstin;
@@ -438,7 +460,7 @@ public class BillingReadService {
     public PrintBillData printBill(String billNo) {
         List<PrintBillData> headers = jdbcTemplate.query(
                 "SELECT b.id, b.bill_display, b.cusName, b.cusPhn, b.DATE, b.TIME, b.total, b.prodDisc, b.extraDisc, " +
-                        "b.payable, b.paid, b.balance, b.paymentMode, b.paymentType, b.is_tax_bill, " +
+                        "IFNULL(b.exchPoint, 0) AS exchPoint, b.payable, b.paid, b.balance, b.paymentMode, b.paymentType, b.is_tax_bill, " +
                         "c.name AS cust_name, c.phone_number, c.address, c.gstin " +
                         "FROM prod_bill b LEFT JOIN customers c ON c.id = b.customerId " +
                         "WHERE b.bill_display = ? AND b.is_cancelled = 0",
@@ -457,6 +479,7 @@ public class BillingReadService {
                     data.setPriceTotal(rs.getDouble("total"));
                     data.setProductDiscount(rs.getDouble("prodDisc"));
                     data.setExtraDiscount(rs.getDouble("extraDisc"));
+                    data.setExchangePointUsed(rs.getDouble("exchPoint"));
                     data.setPayable(rs.getDouble("payable"));
                     data.setPaid(rs.getDouble("paid"));
                     data.setBalance(rs.getDouble("balance"));
@@ -480,7 +503,7 @@ public class BillingReadService {
         bill.setCompanyBankDetails(nz(company.getBankDetails()));
         bill.setAmountInWords(AmountInWords.from(bill.getPaid() == null ? 0 : bill.getPaid()));
         bill.setItems(jdbcTemplate.query(
-                "SELECT p.code, p.name, d.qty, d.price, d.disc, d.total, d.gst, " +
+                "SELECT p.code, p.name, d.qty, d.price, d.disc, d.total, d.gst, IFNULL(d.is_exchanged,0) AS is_exchanged, " +
                         "IFNULL(cat.name,'') AS category_name, " +
                         "CASE WHEN p.hsn IS NULL OR p.hsn = 0 THEN '' ELSE CAST(p.hsn AS CHAR) END AS hsn, " +
                         "IFNULL(u.name,'') AS unit_name " +
@@ -501,10 +524,15 @@ public class BillingReadService {
                     line.setDiscount(rs.getDouble("disc"));
                     line.setTotal(rs.getDouble("total"));
                     line.setGst(rs.getInt("gst"));
+                    line.setIsExchanged(rs.getInt("is_exchanged"));
                     return line;
                 },
                 billNo
         ));
+        if (bill.getItems() != null) {
+            bill.setExchanged(bill.getItems().stream().anyMatch(l -> l.getIsExchanged() != null && l.getIsExchanged() == 1));
+            bill.setReturned(bill.getItems().stream().anyMatch(l -> l.getIsExchanged() != null && l.getIsExchanged() == 2));
+        }
         attachPayments(bill);
         bill.setDocTitle("Tax Invoice");
         bill.setDocNoLabel("Invoice No.");

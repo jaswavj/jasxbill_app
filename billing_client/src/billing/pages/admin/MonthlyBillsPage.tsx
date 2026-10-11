@@ -5,6 +5,7 @@ import { billingApi } from '../../../api/billing/billing-api-service';
 import ListPagination, { normalizePage } from '../../components/ListPagination';
 import { handleThermalDispatch } from '../../../api/billing/local-print-agent';
 import { routerPathNames } from '../../../routes/routerPathNames';
+import { openBillWhatsApp } from '../../components/whatsAppBill';
 import { useBillDetail } from '../account-reports/BillDetailModal';
 import '../master/Master.css';
 import './MonthlyBills.css';
@@ -20,6 +21,9 @@ type Card = {
   paymentMode: number;
   isTaxBill: number;
   stateLabel: string;
+  exchanged?: boolean;
+  returned?: boolean;
+  exchPoint?: number;
 };
 
 const monthValue = () => {
@@ -98,16 +102,7 @@ const MonthlyBillsPage: React.FC = () => {
   };
 
   const whatsApp = (card: Card) => {
-    const digits = (card.customerPhone || '').replace(/\D/g, '');
-    if (digits.length < 10) {
-      toast.error('Customer phone is missing');
-      return;
-    }
-    const phone = digits.length === 10 ? `91${digits}` : digits;
-    const text = encodeURIComponent(
-      `Sales Invoice #${card.billDisplay}\n${card.customerName || 'Customer'}\nAmount: ${inr(card.payable)}`
-    );
-    window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+    void openBillWhatsApp(card).catch(() => toast.error('Could not open WhatsApp'));
   };
 
   return (
@@ -144,9 +139,15 @@ const MonthlyBillsPage: React.FC = () => {
                     <span className="mb-chip">{payLabel(card.paymentMode)}</span>
                     {card.isTaxBill === 1 && <span className="mb-chip">GST</span>}
                     {card.stateLabel && <span className="mb-chip">{card.stateLabel}</span>}
+                    {card.exchanged && <span className="mb-chip exch">Exchanged</span>}
+                    {card.returned && <span className="mb-chip ret">Returned</span>}
+                    {!card.exchanged && !card.returned && <span className="mb-chip sale">No Exchange</span>}
                   </div>
                 </div>
-                <div className="mb-amt">{inr(card.payable)}</div>
+                <div className="mb-amt">
+                  {inr(Number(card.payable || 0) + Number(card.exchPoint || 0))}
+                  {Number(card.exchPoint) > 0 && <small>Exch. {inr(card.exchPoint)}</small>}
+                </div>
               </div>
               <div className="mb-actions">
                 <button className="mb-act" type="button" onClick={() => openBill(card.billDisplay)}>

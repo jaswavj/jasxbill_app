@@ -8,13 +8,24 @@ import { n2 } from './reportHelpers';
 type Line = {
   code?: string; name: string; categoryName?: string; hsn?: string; unitName?: string;
   qty: number; price: number; discount: number; total: number; gst: number;
+  isExchanged?: number;
 };
 type Pay = { date: string; mode: string; method: string; paid: number; balance: number };
 type Bill = {
   billDisplay: string; customerName?: string; customerPhone?: string; customerAddress?: string; customerGstin?: string;
   date: string; time: string; priceTotal: number; productDiscount: number; extraDiscount: number;
+  exchangePointUsed?: number;
   payable: number; paid: number; balance: number; cashPaid?: number; bankPaid?: number;
+  exchanged?: boolean; returned?: boolean;
   items: Line[]; payments: Pay[];
+};
+
+const lineStatus = (v?: number) => (v === 1 ? 'Exchanged' : v === 2 ? 'Returned' : 'Sale');
+const billStatus = (bill: Bill) => {
+  if (bill.exchanged && bill.returned) return 'Exchanged / Returned';
+  if (bill.exchanged) return 'Exchanged';
+  if (bill.returned) return 'Returned';
+  return 'No Exchange';
 };
 
 type Props = { billNo: string; onClose: () => void };
@@ -55,6 +66,7 @@ const BillDetailModal: React.FC<Props> = ({ billNo, onClose }) => {
               <div className="mst-fg"><label>Phone</label><input className="mst-inp" readOnly value={bill.customerPhone || '-'} /></div>
               <div className="mst-fg"><label>Date</label><input className="mst-inp" readOnly value={`${bill.date || ''} ${bill.time || ''}`.trim()} /></div>
               <div className="mst-fg"><label>GSTIN</label><input className="mst-inp" readOnly value={bill.customerGstin || '-'} /></div>
+              <div className="mst-fg"><label>Exchange</label><input className="mst-inp" readOnly value={billStatus(bill)} /></div>
               {bill.customerAddress ? (
                 <div className="mst-fg span-2"><label>Address</label><input className="mst-inp" readOnly value={bill.customerAddress} /></div>
               ) : null}
@@ -63,19 +75,20 @@ const BillDetailModal: React.FC<Props> = ({ billNo, onClose }) => {
               <table className="mst-table">
                 <thead>
                   <tr>
-                    <th>#</th><th>Product</th><th>HSN</th><th>Unit</th>
+                    <th>#</th><th>Product</th><th>HSN</th><th>Unit</th><th>Status</th>
                     <th className="num">Qty</th><th className="num">Price</th><th className="num">Disc</th>
                     <th className="num">GST%</th><th className="num">Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(bill.items || []).length === 0 && <tr><td colSpan={9} className="mst-empty">No line items.</td></tr>}
+                  {(bill.items || []).length === 0 && <tr><td colSpan={10} className="mst-empty">No line items.</td></tr>}
                   {(bill.items || []).map((line, i) => (
                     <tr key={`${line.name}-${i}`}>
                       <td>{i + 1}</td>
                       <td>{line.name}{line.code ? <div className="mst-note">{line.code}</div> : null}</td>
                       <td>{line.hsn || '-'}</td>
                       <td>{line.unitName || '-'}</td>
+                      <td>{lineStatus(line.isExchanged)}</td>
                       <td className="num">{n2(line.qty)}</td>
                       <td className="num">{n2(line.price)}</td>
                       <td className="num">{n2(line.discount)}</td>
@@ -90,6 +103,7 @@ const BillDetailModal: React.FC<Props> = ({ billNo, onClose }) => {
               <div className="mst-fg"><label>Total</label><input className="mst-inp" readOnly value={n2(bill.priceTotal)} /></div>
               <div className="mst-fg"><label>Product Disc</label><input className="mst-inp" readOnly value={n2(bill.productDiscount)} /></div>
               <div className="mst-fg"><label>Extra Disc</label><input className="mst-inp" readOnly value={n2(bill.extraDiscount)} /></div>
+              <div className="mst-fg"><label>Exch. Point</label><input className="mst-inp" readOnly value={n2(bill.exchangePointUsed)} /></div>
               <div className="mst-fg"><label>Payable</label><input className="mst-inp" readOnly value={n2(bill.payable)} /></div>
               <div className="mst-fg"><label>Paid</label><input className="mst-inp" readOnly value={n2(bill.paid)} /></div>
               <div className="mst-fg"><label>Balance</label><input className="mst-inp" readOnly value={n2(bill.balance)} /></div>

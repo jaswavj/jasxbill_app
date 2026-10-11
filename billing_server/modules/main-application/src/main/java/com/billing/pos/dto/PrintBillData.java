@@ -18,6 +18,7 @@ public class PrintBillData {
     private Double priceTotal;
     private Double productDiscount;
     private Double extraDiscount;
+    private Double exchangePointUsed;
     private Double payable;
     private Double paid;
     private Double balance;
@@ -26,6 +27,8 @@ public class PrintBillData {
     private Integer paymentMode;
     private Integer paymentType;
     private Integer isTaxBill;
+    private Boolean exchanged;
+    private Boolean returned;
     private Integer printType;
     private String printerName;
     private String companyName;
@@ -50,6 +53,7 @@ public class PrintBillData {
         private Double discount;
         private Double total;
         private Integer gst;
+        private Integer isExchanged;
     }
 
     @Data

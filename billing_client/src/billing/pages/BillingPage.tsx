@@ -241,7 +241,8 @@ const BillingPage: React.FC = () => {
   }, [lines, isCommission]);
 
   const extra = parseFloat(extraDisc) || 0;
-  const payable = Math.max(0, totals.grandTotal - extra);
+  const exchCredit = Number(exchangeUsed) || 0;
+  const payable = Math.max(0, totals.grandTotal - extra - exchCredit);
   const cashAmt = parseFloat(cashPaid) || 0;
   const bankAmt = parseFloat(bankPaid) || 0;
   const paidAmt = cashAmt + bankAmt;
@@ -260,6 +261,12 @@ const BillingPage: React.FC = () => {
       }
     }
   }, [extraDisc, totals, discPer, bypassCap]);
+
+  useEffect(() => {
+    const afterExtra = Math.max(0, totals.grandTotal - extra);
+    const maxUse = Math.min(exchangePoint, afterExtra);
+    if (exchangeUsed > maxUse) setExchangeUsed(maxUse);
+  }, [totals.grandTotal, extra, exchangePoint, exchangeUsed]);
 
   useEffect(() => {
     if (!autoPay.current) return;
@@ -321,6 +328,7 @@ const BillingPage: React.FC = () => {
     setCustomerName(c.name);
     setCustomerPhone(c.phone === '-' ? '' : c.phone);
     setExchangePoint(c.exchangePoint || 0);
+    setExchangeUsed(0);
     if (c.isEligibleForCommission === 1) setIsCommission(true);
     clearCustSuggest();
   };
@@ -1524,19 +1532,23 @@ const BillingPage: React.FC = () => {
 
               {exchangePoint > 0 && (
                 <div className="pos-save-inline pos-save-inline-info">
-                  <span>Exchange {rupee(exchangePoint)}</span>
-                  <button
-                    className="pos-btn pos-btn-sm"
-                    type="button"
-                    onClick={() => {
-                      const use = Math.min(exchangePoint, payable);
-                      setExtraDisc(String(use));
-                      setExchangeUsed(use);
-                      setBypassCap(true);
-                    }}
-                  >
-                    Apply
-                  </button>
+                  <span>Exchange point {rupee(exchangePoint)}{exchCredit > 0 ? ` · using ${rupee(exchCredit)}` : ''}</span>
+                  {exchCredit > 0 ? (
+                    <button className="pos-btn pos-btn-sm pos-btn-outline" type="button" onClick={() => setExchangeUsed(0)}>
+                      Clear
+                    </button>
+                  ) : (
+                    <button
+                      className="pos-btn pos-btn-sm"
+                      type="button"
+                      onClick={() => {
+                        const afterExtra = Math.max(0, totals.grandTotal - extra);
+                        setExchangeUsed(Math.min(exchangePoint, afterExtra));
+                      }}
+                    >
+                      Apply
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1567,6 +1579,12 @@ const BillingPage: React.FC = () => {
                     onChange={(e) => { markSaleDraft(); setExtraDisc(e.target.value); setBypassCap(false); }}
                   />
                 </div>
+                {exchCredit > 0 && (
+                  <div className="pos-save-chip">
+                    <span>Exch. Point</span>
+                    <strong>{money(exchCredit)}</strong>
+                  </div>
+                )}
                 <div className="pos-save-chip pos-save-chip-pay pos-save-chip-pay-desk">
                   <span>Payable</span>
                   <strong>{rupee(payable)}</strong>

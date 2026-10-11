@@ -2,16 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
-  Area,
   Bar,
+  BarChart,
   CartesianGrid,
   Cell,
-  ComposedChart,
   Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
-  Sector,
   Tooltip,
   XAxis,
   YAxis,
@@ -19,9 +17,9 @@ import {
 import { billingApi } from '../../../api/billing/billing-api-service';
 import { handleThermalDispatch } from '../../../api/billing/local-print-agent';
 import { statsApi, statsData, statsError } from '../../../api/statistics/statistics-api-service';
-import { routerPathNames } from '../../../routes/routerPathNames';
 import ListPagination from '../../components/ListPagination';
 import { normalizePage } from '../../components/ListPagination';
+import { openBillWhatsApp } from '../../components/whatsAppBill';
 import { useBillDetail } from '../account-reports/BillDetailModal';
 import '../admin/MonthlyBills.css';
 import '../master/Master.css';
@@ -39,6 +37,9 @@ type BillCard = {
   paymentMode: number;
   isTaxBill: number;
   stateLabel: string;
+  exchanged?: boolean;
+  returned?: boolean;
+  exchPoint?: number;
 };
 type Dash = {
   year: number; month: number; label: string;
@@ -47,6 +48,7 @@ type Dash = {
   expense: number; lastExpense: number; expensePct: number;
   profit: number; lastProfit: number; profitPct: number;
   netProfit: number; todaySales: number; todayBills: number; daily: Day[];
+  exchPoint?: number;
   bills?: BillCard[];
 };
 
@@ -86,15 +88,31 @@ const fmtTime = (t: string) => {
 
 const payLabel = (mode: number) => (mode === 2 ? 'Bank' : mode === 3 ? 'Mixed' : 'Cash');
 
+const useNarrow = () => {
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const on = () => setNarrow(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return narrow;
+};
+
 const ChartTip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
+  const rows = payload.filter((p: any) => p.dataKey === 'sales' || p.dataKey === 'purchase');
+  if (!rows.length) return null;
+  const title = rows[0]?.payload?.label || label;
   return (
     <div className="st-tip">
-      <div className="st-tip-d">{label}</div>
-      {payload.map((p: any) => (
+      <div className="st-tip-d">{title}</div>
+      {rows.map((p: any) => (
         <div key={p.dataKey} className="st-tip-row">
-          <i style={{ background: p.color }} />
-          {p.name}: ₹ {n(p.value)}
+          <i style={{ background: p.fill || p.color }} />
+          <span>{p.name}</span>
+          <b>₹ {n(p.value)}</b>
         </div>
       ))}
     </div>
@@ -114,19 +132,8 @@ const PieTip = ({ active, payload }: any) => {
   );
 };
 
-const ActiveSlice = (props: any) => {
-  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value } = props;
-  return (
-    <g>
-      <text x={cx} y={cy - 10} textAnchor="middle" fill="var(--color-text)" fontSize={13} fontWeight={700}>{payload.name}</text>
-      <text x={cx} y={cy + 10} textAnchor="middle" fill="var(--color-text-muted)" fontSize={12}>₹ {n(value)}</text>
-      <text x={cx} y={cy + 26} textAnchor="middle" fill="var(--color-text-muted)" fontSize={11}>{(percent * 100).toFixed(1)}%</text>
-      <Sector cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius + 8} startAngle={startAngle} endAngle={endAngle} fill={fill} />
-    </g>
-  );
-};
-
 const StatsDashboardPage: React.FC = () => {
+  const narrow = useNarrow();
   const now = new Date();
   const navigate = useNavigate();
   const { openBill, billModal } = useBillDetail();
@@ -181,6 +188,13 @@ const StatsDashboardPage: React.FC = () => {
     ].filter((s) => s.value > 0);
   }, [data]);
   const pieTotal = pieData.reduce((sum, s) => sum + s.value, 0);
+  const chartDays = useMemo(() => daily.map((d) => ({
+    ...d,
+    label: String(d.date || ''),
+    day: String(d.date || '').slice(0, 2),
+  })), [daily]);
+  const chartH = narrow ? 210 : 280;
+  const pieH = narrow ? 180 : 230;
 
   const printBill = async (billNo: string) => {
     try {
@@ -197,16 +211,7 @@ const StatsDashboardPage: React.FC = () => {
   };
 
   const whatsApp = (card: BillCard) => {
-    const digits = (card.customerPhone || '').replace(/\D/g, '');
-    if (digits.length < 10) {
-      toast.error('Customer phone is missing');
-      return;
-    }
-    const phone = digits.length === 10 ? `91${digits}` : digits;
-    const text = encodeURIComponent(
-      `Sales Invoice #${card.billDisplay}\n${card.customerName || 'Customer'}\nAmount: ${inr(card.payable)}`
-    );
-    window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+    void openBillWhatsApp(card).catch(() => toast.error('Could not open WhatsApp'));
   };
 
   return (
@@ -236,52 +241,65 @@ const StatsDashboardPage: React.FC = () => {
       {data && (
         <>
           <div className="st-kpis">
-            <div className="st-kpi sales"><div className="st-kpi-l">Total Sales</div><div className="st-kpi-v">₹ {n(data.sales)}</div><div className="st-kpi-t">{trend(data.salesPct, data.lastSales)}</div></div>
+            <div className="st-kpi sales">
+              <div className="st-kpi-l">Total Sales</div>
+              <div className="st-kpi-v">₹ {n(data.sales)}</div>
+              <div className="st-kpi-t">{trend(data.salesPct, data.lastSales)}</div>
+              {Number(data.exchPoint) > 0 && <div className="st-kpi-t">Includes ₹ {n(data.exchPoint)} exchange point</div>}
+            </div>
             <div className="st-kpi purchase"><div className="st-kpi-l">Total Purchase</div><div className="st-kpi-v">₹ {n(data.purchase)}</div><div className="st-kpi-t">{trend(data.purchasePct, data.lastPurchase)}</div></div>
             <div className="st-kpi expense"><div className="st-kpi-l">Total Expense</div><div className="st-kpi-v">₹ {n(data.expense)}</div><div className="st-kpi-t">{trend(data.expensePct, data.lastExpense)}</div></div>
             <div className={`st-kpi profit ${data.netProfit >= 0 ? 'up' : 'down'}`}><div className="st-kpi-l">Net Profit</div><div className="st-kpi-v">₹ {n(data.netProfit)}</div><div className="st-kpi-t">{trend(data.profitPct, data.lastProfit)}</div></div>
           </div>
-          <div className="mst-note" style={{ marginBottom: 10 }}>Today: ₹ {n(data.todaySales)} across {data.todayBills} bills · Showing {data.label}</div>
+          <div className="mst-note st-today">Today: ₹ {n(data.todaySales)} across {data.todayBills} bills · Showing {data.label}</div>
           <div className="st-charts">
             <div className="mst-card">
               <div className="mst-card-h">Daily Sales vs Purchase — {data.label}</div>
               <div className="mst-card-b st-chart-body">
-                <ResponsiveContainer width="100%" height={340}>
-                  <ComposedChart data={daily} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={SALES} stopOpacity={0.28} />
-                        <stop offset="100%" stopColor={SALES} stopOpacity={0.02} />
-                      </linearGradient>
-                      <linearGradient id="salesBar" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#60a5fa" />
-                        <stop offset="100%" stopColor={SALES} />
-                      </linearGradient>
-                      <linearGradient id="purchaseBar" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#fdba74" />
-                        <stop offset="100%" stopColor={PURCHASE} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                    <XAxis dataKey="date" tickFormatter={(v) => String(v).slice(0, 2)} tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} interval={1} />
-                    <YAxis tickFormatter={compact} tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={46} />
-                    <Tooltip content={<ChartTip />} />
-                    <Legend wrapperStyle={{ fontSize: 12, color: 'var(--color-text)' }} />
-                    <Area type="monotone" dataKey="sales" name="Sales trend" fill="url(#salesFill)" stroke="none" legendType="none" tooltipType="none" />
-                    <Bar dataKey="sales" name="Sales" fill="url(#salesBar)" radius={[4, 4, 0, 0]} maxBarSize={16} />
-                    <Bar dataKey="purchase" name="Purchase" fill="url(#purchaseBar)" radius={[4, 4, 0, 0]} maxBarSize={16} />
-                  </ComposedChart>
-                </ResponsiveContainer>
+                {chartDays.length === 0 ? (
+                  <div className="mst-empty">No days in this month.</div>
+                ) : (
+                  <>
+                    <div className="mst-note" style={{ marginBottom: 8 }}>Every day of the month</div>
+                    <div className="st-chart-desk">
+                      <div className="st-chart-scroll">
+                        <div style={{ minWidth: Math.max(chartDays.length, 2) * (narrow ? 72 : 56), height: chartH }}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={chartDays} margin={{ top: 8, right: 8, left: 0, bottom: 4 }} barGap={6} barCategoryGap="28%">
+                              <defs>
+                                <linearGradient id="salesBar" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#60a5fa" />
+                                  <stop offset="100%" stopColor={SALES} />
+                                </linearGradient>
+                                <linearGradient id="purchaseBar" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#fdba74" />
+                                  <stop offset="100%" stopColor={PURCHASE} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                              <XAxis dataKey="day" tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} interval={0} />
+                              <YAxis tickFormatter={compact} tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={40} />
+                              <Tooltip content={<ChartTip />} cursor={{ fill: 'rgba(15, 23, 42, 0.05)' }} />
+                              <Legend wrapperStyle={{ fontSize: 12 }} />
+                              <Bar dataKey="sales" name="Sales" fill="url(#salesBar)" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                              <Bar dataKey="purchase" name="Purchase" fill="url(#purchaseBar)" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
             <div className="mst-card">
               <div className="mst-card-h">Month Mix — {data.label}</div>
-              <div className="mst-card-b st-chart-body">
+              <div className="mst-card-b st-chart-body st-pie-wrap">
                 {pieTotal <= 0 ? (
                   <div className="mst-empty">No sales, purchase, or expense in this month.</div>
                 ) : (
                   <>
-                    <ResponsiveContainer width="100%" height={250}>
+                    <ResponsiveContainer width="100%" height={pieH}>
                       <PieChart>
                         <Pie
                           data={pieData}
@@ -289,26 +307,27 @@ const StatsDashboardPage: React.FC = () => {
                           nameKey="name"
                           cx="50%"
                           cy="50%"
-                          innerRadius={62}
-                          outerRadius={92}
+                          innerRadius={narrow ? 48 : 58}
+                          outerRadius={narrow ? 74 : 88}
                           paddingAngle={3}
-                          activeIndex={pieIndex}
-                          activeShape={ActiveSlice}
                           onMouseEnter={(_, i) => setPieIndex(i)}
+                          onClick={(_, i) => setPieIndex(i)}
                         >
-                          {pieData.map((s) => <Cell key={s.name} fill={s.color} stroke="var(--color-bg-surface)" strokeWidth={2} />)}
+                          {pieData.map((s, i) => (
+                            <Cell key={s.name} fill={s.color} stroke="var(--color-bg-surface)" strokeWidth={pieIndex === i ? 3 : 2} />
+                          ))}
                         </Pie>
                         <Tooltip content={<PieTip />} />
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="st-pie-legend">
-                      {pieData.map((s) => (
-                        <div key={s.name} className="st-pie-leg">
+                      {pieData.map((s, i) => (
+                        <button key={s.name} type="button" className={`st-pie-leg ${pieIndex === i ? 'on' : ''}`} onClick={() => setPieIndex(i)}>
                           <i style={{ background: s.color }} />
                           <span>{s.name}</span>
                           <b>₹ {n(s.value)}</b>
                           <em>{((s.value / pieTotal) * 100).toFixed(1)}%</em>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </>
@@ -337,20 +356,19 @@ const StatsDashboardPage: React.FC = () => {
                             <span className="mb-chip">{payLabel(card.paymentMode)}</span>
                             {card.isTaxBill === 1 && <span className="mb-chip">GST</span>}
                             {card.stateLabel && <span className="mb-chip">{card.stateLabel}</span>}
+                            {card.exchanged && <span className="mb-chip exch">Exchanged</span>}
+                            {card.returned && <span className="mb-chip ret">Returned</span>}
+                            {!card.exchanged && !card.returned && <span className="mb-chip sale">No Exchange</span>}
                           </div>
                         </div>
-                        <div className="mb-amt">{inr(card.payable)}</div>
+                        <div className="mb-amt">
+                          {inr(Number(card.payable || 0) + Number(card.exchPoint || 0))}
+                          {Number(card.exchPoint) > 0 && <small>Exch. {inr(card.exchPoint)}</small>}
+                        </div>
                       </div>
-                      <div className="mb-actions">
+                      <div className="mb-actions mb-actions-3">
                         <button className="mb-act" type="button" onClick={() => openBill(card.billDisplay)}>
                           <i className="fas fa-eye" /> View
-                        </button>
-                        <button
-                          className="mb-act"
-                          type="button"
-                          onClick={() => navigate(`${routerPathNames.billing}?edit=${encodeURIComponent(card.billDisplay)}`)}
-                        >
-                          <i className="fas fa-edit" /> Edit
                         </button>
                         <button className="mb-act mb-act-print" type="button" onClick={() => printBill(card.billDisplay)}>
                           <i className="fas fa-print" /> Print

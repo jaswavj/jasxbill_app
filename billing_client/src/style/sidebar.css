@@ -874,5 +874,9 @@
     .module-sidebar.mobile-open {
         transform: translateX(0);
     }
+
+    .module-content {
+        padding: 0.4rem 0.45rem 1rem;
+    }
 }
 

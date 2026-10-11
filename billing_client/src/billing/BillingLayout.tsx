@@ -4,10 +4,13 @@ import ModulePageOutlet from '../components/ModulePageOutlet';
 import { useSelector } from 'react-redux';
 import { RootState } from '../state/store';
 import Sidebar from './components/Sidebar';
+import useMobileReportTables from './components/useMobileReportTables';
 
 const BillingLayout: React.FC = () => {
   const navigate = useNavigate();
   const loginData = useSelector((state: RootState) => state.loginData);
+
+  useMobileReportTables();
 
   useEffect(() => {
     if (!loginData.authorized) {

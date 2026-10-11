@@ -11,7 +11,8 @@ import ReportActions from './ReportActions';
 type User = { id: number; name: string };
 type Bill = {
   billNo: string; customer: string; total: number; payable: number; paid: number;
-  cash: number; bank: number; balance: number; pendingBalance: number; date: string; time: string; biller: string;
+  cash: number; bank: number; balance: number; pendingBalance: number;
+  exchPoint?: number; date: string; time: string; biller: string;
 };
 type Due = {
   customer: string; balance: number; cashPaid: number; bankPaid: number; mode: string;
@@ -135,7 +136,8 @@ const SalesReportPage: React.FC = () => {
                   name: 'Sales',
                   columns: [
                     { key: 'billNo', label: 'Bill No' }, { key: 'customer', label: 'Customer' },
-                    { key: 'total', label: 'Total', num: true }, { key: 'payable', label: 'Payable', num: true },
+                    { key: 'total', label: 'Total', num: true }, { key: 'exchPoint', label: 'Exch. Point', num: true },
+                    { key: 'payable', label: 'Payable', num: true },
                     { key: 'paid', label: 'Paid', num: true }, { key: 'cash', label: 'Cash', num: true },
                     { key: 'bank', label: 'Bank', num: true }, { key: 'balance', label: 'Balance', num: true },
                     { key: 'pendingBalance', label: 'Pending', num: true }, { key: 'date', label: 'Date' },
@@ -166,7 +168,7 @@ const SalesReportPage: React.FC = () => {
               <table className="mst-table">
                 <thead>
                   <tr>
-                    <th>#</th><th>Bill No</th><th>Customer</th><th className="num">Total</th><th className="num">Payable</th><th className="num">Paid</th>
+                    <th>#</th><th>Bill No</th><th>Customer</th><th className="num">Total</th><th className="num">Exch. Point</th><th className="num">Payable</th><th className="num">Paid</th>
                     {showCash && <th className="num">Cash</th>}
                     {showBank && <th className="num">Bank</th>}
                     <th className="num">Balance</th><th className="num">Pending</th><th>Date</th><th>Time</th><th>Biller</th>
@@ -180,6 +182,7 @@ const SalesReportPage: React.FC = () => {
                       <td>{row.billNo}</td>
                       <td>{row.customer}</td>
                       <td className="num">{n3(row.total)}</td>
+                      <td className="num">{n3(row.exchPoint)}</td>
                       <td className="num">{n3(row.payable)}</td>
                       <td className="num">{n3(row.paid)}</td>
                       {showCash && <td className="num">{n3(row.cash)}</td>}
@@ -195,6 +198,7 @@ const SalesReportPage: React.FC = () => {
                     <tr>
                       <td colSpan={3}><strong>Page total</strong></td>
                       <td className="num"><strong>{n3(sum(bills, 'total'))}</strong></td>
+                      <td className="num"><strong>{n3(sum(bills, 'exchPoint'))}</strong></td>
                       <td className="num"><strong>{n3(sum(bills, 'payable'))}</strong></td>
                       <td className="num"><strong>{n3(sum(bills, 'paid'))}</strong></td>
                       {showCash && <td className="num"><strong>{n3(sum(bills, 'cash'))}</strong></td>}

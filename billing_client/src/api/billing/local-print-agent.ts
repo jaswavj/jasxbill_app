@@ -41,17 +41,20 @@ export async function handleThermalDispatch(
     await onA4?.(data.billNo || '');
     return 'a4';
   }
-  // Local Windows server already sent RAW to the USB printer.
+  // Local deploy: server already sent RAW to the named printer.
   if (data.type === 'printed') {
     return 'printed';
   }
-  // Cloud (or local when this machine has no printer): shop-PC agent prints.
-  if (data.printerName && data.payload) {
+  // Cloud deploy: shop-PC print agent (start-print-agent.bat must stay open).
+  if (data.type === 'local') {
+    if (!data.printerName || !data.payload) {
+      throw new Error('Printer name not found.');
+    }
     try {
       await sendToPrintAgent(data.printerName, data.payload);
       return 'local';
-    } catch {
-      throw new Error(AGENT_MSG);
+    } catch (err: any) {
+      throw new Error(err?.message || AGENT_MSG);
     }
   }
   throw new Error('Thermal print did not run. Set the printer name in Company Details.');

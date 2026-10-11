@@ -51,37 +51,38 @@ public class BillingWriteService {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(con -> {
             PreparedStatement ps = con.prepareStatement(
-                    "INSERT INTO prod_bill (bill_display, total, extraDisc, payable, paid, uid, DATE, TIME, cusName, prodDisc, cusPhn, " +
+                    "INSERT INTO prod_bill (bill_display, total, extraDisc, exchPoint, payable, paid, uid, DATE, TIME, cusName, prodDisc, cusPhn, " +
                             "paymentMode, paymentType, balance, is_balance, currentBalance, customerId, price_category, attender_id, is_tax_bill) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     Statement.RETURN_GENERATED_KEYS
             );
             ps.setString(1, billNo);
             ps.setDouble(2, nz(request.getPriceTotal()));
             ps.setDouble(3, nz(request.getFinalDiscount()));
-            ps.setDouble(4, nz(request.getPayableAmount()));
-            ps.setDouble(5, totalPaid);
-            ps.setLong(6, uid);
-            ps.setString(7, customerName);
-            ps.setDouble(8, nz(request.getDiscountTotal()));
-            ps.setString(9, customerPhn);
-            ps.setInt(10, mode);
-            ps.setInt(11, type);
-            ps.setDouble(12, balance);
-            ps.setInt(13, balance > 0 ? 1 : 0);
-            ps.setDouble(14, balance);
+            ps.setDouble(4, nz(request.getExchangePointUsed()));
+            ps.setDouble(5, nz(request.getPayableAmount()));
+            ps.setDouble(6, totalPaid);
+            ps.setLong(7, uid);
+            ps.setString(8, customerName);
+            ps.setDouble(9, nz(request.getDiscountTotal()));
+            ps.setString(10, customerPhn);
+            ps.setInt(11, mode);
+            ps.setInt(12, type);
+            ps.setDouble(13, balance);
+            ps.setInt(14, balance > 0 ? 1 : 0);
+            ps.setDouble(15, balance);
             if (customerId != null && customerId > 0) {
-                ps.setLong(15, customerId);
+                ps.setLong(16, customerId);
             } else {
-                ps.setNull(15, java.sql.Types.INTEGER);
+                ps.setNull(16, java.sql.Types.INTEGER);
             }
-            ps.setInt(16, priceCategory);
+            ps.setInt(17, priceCategory);
             if (request.getAttenderId() != null && request.getAttenderId() > 0) {
-                ps.setLong(17, request.getAttenderId());
+                ps.setLong(18, request.getAttenderId());
             } else {
-                ps.setNull(17, java.sql.Types.INTEGER);
+                ps.setNull(18, java.sql.Types.INTEGER);
             }
-            ps.setInt(18, isTaxBill);
+            ps.setInt(19, isTaxBill);
             return ps;
         }, keyHolder);
         long billId = requireGeneratedId(keyHolder);
@@ -336,11 +337,12 @@ public class BillingWriteService {
         String customerPhn = blankToDash(request.getCustomerPhn());
 
         jdbcTemplate.update(
-                "UPDATE prod_bill SET total = ?, extraDisc = ?, payable = ?, paid = ?, cusName = ?, prodDisc = ?, cusPhn = ?, " +
+                "UPDATE prod_bill SET total = ?, extraDisc = ?, exchPoint = ?, payable = ?, paid = ?, cusName = ?, prodDisc = ?, cusPhn = ?, " +
                         "paymentMode = ?, paymentType = ?, balance = ?, is_balance = ?, currentBalance = ?, customerId = ?, " +
                         "price_category = ?, attender_id = ?, is_tax_bill = ? WHERE id = ?",
                 nz(request.getPriceTotal()),
                 nz(request.getFinalDiscount()),
+                nz(request.getExchangePointUsed()),
                 payableAmt,
                 totalPaid,
                 customerName,
@@ -676,7 +678,7 @@ public class BillingWriteService {
         jdbcTemplate.update(
                 "INSERT INTO customers_exchange_point (customer_id, bill_id, old_point, exchange_point, total_point, uid, date_time, notes) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)",
                 customerId, billId, oldPoint, -actualDeduct, newPoint, uid,
-                "Points used as bill discount (Bill ID: " + billId + ", Used: " + String.format("%.2f", actualDeduct) + ")"
+                "Exchange point used as bill credit (Bill ID: " + billId + ", Used: " + String.format("%.2f", actualDeduct) + ")"
         );
     }
 

@@ -37,7 +37,8 @@ public class AccountReportService {
         long uid = userId == null ? 0 : userId;
         int tax = taxBill == null ? 0 : taxBill;
 
-        String sql = "SELECT a.bill_display, a.total, a.prodDisc + a.extraDisc AS discount, a.payable, a.paid, a.date, a.time, b.user_name, "
+        String sql = "SELECT a.bill_display, a.total, a.prodDisc + a.extraDisc AS discount, IFNULL(a.exchPoint, 0) AS exch_point, "
+                + "a.payable, a.paid, a.date, a.time, b.user_name, "
                 + "a.id, CASE WHEN a.paymentMode = 3 THEN CONCAT('CASH & ', MAX(d.type)) ELSE MAX(d.type) END AS pay_type, "
                 + "SUM(c.cash) AS cash, SUM(c.bank) AS bank, a.balance, a.currentBalance, a.cusName, a.cusPhn "
                 + "FROM prod_bill a "
@@ -66,7 +67,7 @@ public class AccountReportService {
         } else if (tax == 2) {
             sql += "AND IFNULL(a.is_tax_bill, 0) = 0 ";
         }
-        sql += "GROUP BY a.id, a.bill_display, a.total, a.prodDisc, a.extraDisc, a.payable, a.paid, a.date, a.time, "
+        sql += "GROUP BY a.id, a.bill_display, a.total, a.prodDisc, a.extraDisc, a.exchPoint, a.payable, a.paid, a.date, a.time, "
                 + "b.user_name, a.balance, a.currentBalance, a.cusName, a.cusPhn, a.paymentMode";
 
         List<Map<String, Object>> bills = jdbcTemplate.query(sql, (rs, i) -> {
@@ -75,6 +76,7 @@ public class AccountReportService {
             row.put("billId", rs.getLong("id"));
             row.put("total", rs.getDouble("total"));
             row.put("discount", rs.getDouble("discount"));
+            row.put("exchPoint", rs.getDouble("exch_point"));
             row.put("payable", rs.getDouble("payable"));
             row.put("paid", rs.getDouble("paid"));
             row.put("cash", rs.getDouble("cash"));

@@ -436,6 +436,14 @@
 }
 
 @media (max-width: 900px) {
+  .mst-page {
+    padding: 10px 8px 20px;
+  }
+
+  .mst-title {
+    font-size: 1.05rem;
+  }
+
   .mst-grid,
   .mst-grid-wide,
   .mst-grid-barcode {
@@ -447,11 +455,159 @@
   }
 
   .mst-form {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
 
   .mst-other-body {
     grid-template-columns: 1fr;
+  }
+
+  .mst-actions {
+    flex-wrap: wrap;
+  }
+
+  .mst-actions .mst-btn {
+    flex: 1 1 auto;
+    min-height: 38px;
+  }
+
+  .mst-inp,
+  .mst-sel,
+  .mst-area {
+    font-size: 16px;
+  }
+
+  .mst-card-h {
+    flex-wrap: wrap;
+    font-size: 0.86rem;
+  }
+
+  .mst-table-wrap {
+    overflow-x: auto;
+    overflow-y: visible;
+    max-height: none;
+  }
+
+  .mst-table,
+  .mst-table-wide {
+    width: max-content;
+    min-width: 100%;
+    table-layout: auto;
+  }
+
+  .mst-table th,
+  .mst-table td {
+    overflow: visible;
+    text-overflow: unset;
+    white-space: nowrap;
+  }
+
+  .mst-table.mst-mobile-cards {
+    width: 100%;
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0 8px;
+  }
+
+  .mst-table.mst-mobile-cards thead {
+    display: none;
+  }
+
+  .mst-table.mst-mobile-cards tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    position: relative;
+    background: var(--color-bg-surface);
+    border: 1px solid color-mix(in srgb, var(--color-primary) 12%, transparent);
+    border-left: 3px solid var(--color-primary);
+    border-radius: 10px;
+    padding: 0;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  }
+
+  .mst-table.mst-mobile-cards tbody tr:hover {
+    background: var(--color-bg-surface);
+  }
+
+  .mst-table.mst-mobile-cards tbody td {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 1px;
+    width: auto;
+    min-width: 0;
+    border: 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 7%, transparent);
+    padding: 5px 8px;
+    white-space: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .mst-table.mst-mobile-cards tbody td::before {
+    content: attr(data-label);
+    flex: none;
+    max-width: none;
+    text-align: left;
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    padding: 0;
+    line-height: 1.1;
+  }
+
+  .mst-table.mst-mobile-cards tbody td.num {
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mst-table.mst-mobile-cards tbody td[data-role="title"] {
+    grid-column: 1 / -1;
+    flex-direction: column;
+    justify-content: center;
+    background: color-mix(in srgb, var(--color-primary) 8%, var(--color-bg-surface));
+    border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 10%, transparent);
+    padding: 6px 36px 6px 10px;
+    font-size: 0.9rem;
+    font-weight: 800;
+  }
+
+  .mst-table.mst-mobile-cards tbody td[data-role="index"] {
+    position: absolute;
+    top: 7px;
+    right: 8px;
+    width: auto;
+    border: 0;
+    padding: 0 2px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: var(--color-text-muted);
+    background: transparent;
+  }
+
+  .mst-table.mst-mobile-cards tbody td[data-role="index"]::before {
+    display: none;
+  }
+
+  .mst-table.mst-mobile-cards tbody td.mst-empty {
+    grid-column: 1 / -1;
+    display: block;
+    text-align: center;
+    border: 0;
+    padding: 1.2rem 0.5rem;
+  }
+
+  .mst-table.mst-mobile-cards tbody td.mst-empty::before {
+    display: none;
   }
 }
 
@@ -504,5 +660,34 @@
     white-space: normal !important;
     font-size: 9px !important;
     padding: 3px 4px !important;
+  }
+
+  .mst-table.mst-mobile-cards {
+    display: table !important;
+    width: 100% !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+  }
+
+  .mst-table.mst-mobile-cards thead {
+    display: table-header-group !important;
+  }
+
+  .mst-table.mst-mobile-cards tbody {
+    display: table-row-group !important;
+  }
+
+  .mst-table.mst-mobile-cards tbody tr {
+    display: table-row !important;
+  }
+
+  .mst-table.mst-mobile-cards tbody td {
+    display: table-cell !important;
+    position: static !important;
+    grid-column: auto !important;
+  }
+
+  .mst-table.mst-mobile-cards tbody td::before {
+    display: none !important;
   }
 }

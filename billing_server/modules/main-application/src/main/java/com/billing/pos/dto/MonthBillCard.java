@@ -14,4 +14,7 @@ public class MonthBillCard {
     private Integer paymentMode;
     private Integer isTaxBill;
     private String stateLabel;
+    private Boolean exchanged;
+    private Boolean returned;
+    private Double exchPoint;
 }

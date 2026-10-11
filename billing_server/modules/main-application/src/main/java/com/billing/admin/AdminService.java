@@ -51,11 +51,15 @@ public class AdminService {
         addIntColumn("barcode_per_row", 1);
         addIntColumn("barcode_width_mm", 50);
         addIntColumn("barcode_height_mm", 30);
+        addIntColumn("thermal_print_type", 1);
+        addIntColumn("thermal_txt_file", 0);
     }
 
     public CompanyDetailsData company() {
         List<CompanyDetailsData> rows = jdbcTemplate.query(
-                "SELECT id, shop_name, address, gstin, print_type, IFNULL(billing_type, 1) AS billing_type, printer_name, bank_details, barcode_printer, " +
+                "SELECT id, shop_name, address, gstin, print_type, IFNULL(thermal_print_type, 1) AS thermal_print_type, " +
+                        "IFNULL(thermal_txt_file, 0) AS thermal_txt_file, " +
+                        "IFNULL(billing_type, 1) AS billing_type, printer_name, bank_details, barcode_printer, " +
                         "IFNULL(barcode_per_row, 1) AS barcode_per_row, IFNULL(barcode_width_mm, 50) AS barcode_width_mm, " +
                         "IFNULL(barcode_height_mm, 30) AS barcode_height_mm FROM company_details LIMIT 1",
                 (rs, i) -> {
@@ -65,6 +69,8 @@ public class AdminService {
                     data.setAddress(nz(rs.getString("address")));
                     data.setGstin(nz(rs.getString("gstin")));
                     data.setPrintType(rs.getInt("print_type"));
+                    data.setThermalPrintType(normalizeThermalPrintType(rs.getInt("thermal_print_type")));
+                    data.setThermalTxtFile(normalizeFlag(rs.getInt("thermal_txt_file")));
                     data.setBillingType(normalizeBillingType(rs.getInt("billing_type")));
                     data.setPrinterName(nz(rs.getString("printer_name")));
                     data.setBankDetails(nz(rs.getString("bank_details")));
@@ -78,6 +84,8 @@ public class AdminService {
         if (rows.isEmpty()) {
             CompanyDetailsData empty = new CompanyDetailsData();
             empty.setPrintType(1);
+            empty.setThermalPrintType(1);
+            empty.setThermalTxtFile(0);
             empty.setBillingType(1);
             empty.setShopName("");
             empty.setAddress("");
@@ -101,6 +109,8 @@ public class AdminService {
         if (printType != 1 && printType != 2) {
             throw new RuntimeException("Invalid print type");
         }
+        int thermalPrintType = normalizeThermalPrintType(request.getThermalPrintType());
+        int thermalTxtFile = normalizeFlag(request.getThermalTxtFile());
         String printerName = nz(request.getPrinterName()).trim();
         if (printType == 1 && printerName.isEmpty()) {
             throw new RuntimeException("Printer name is required for thermal printing");
@@ -118,13 +128,13 @@ public class AdminService {
         Long id = jdbcTemplate.query("SELECT id FROM company_details LIMIT 1", rs -> rs.next() ? rs.getLong(1) : null);
         if (id != null) {
             jdbcTemplate.update(
-                    "UPDATE company_details SET shop_name=?, address=?, gstin=?, print_type=?, billing_type=?, printer_name=?, bank_details=?, barcode_printer=?, barcode_per_row=?, barcode_width_mm=?, barcode_height_mm=? WHERE id=?",
-                    shopName, address, gstin, printType, billingType, printerName, bankDetails, barcodePrinter, barcodePerRow, barcodeWidthMm, barcodeHeightMm, id
+                    "UPDATE company_details SET shop_name=?, address=?, gstin=?, print_type=?, thermal_print_type=?, thermal_txt_file=?, billing_type=?, printer_name=?, bank_details=?, barcode_printer=?, barcode_per_row=?, barcode_width_mm=?, barcode_height_mm=? WHERE id=?",
+                    shopName, address, gstin, printType, thermalPrintType, thermalTxtFile, billingType, printerName, bankDetails, barcodePrinter, barcodePerRow, barcodeWidthMm, barcodeHeightMm, id
             );
         } else {
             jdbcTemplate.update(
-                    "INSERT INTO company_details (shop_name, address, gstin, print_type, billing_type, printer_name, bank_details, barcode_printer, barcode_per_row, barcode_width_mm, barcode_height_mm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    shopName, address, gstin, printType, billingType, printerName, bankDetails, barcodePrinter, barcodePerRow, barcodeWidthMm, barcodeHeightMm
+                    "INSERT INTO company_details (shop_name, address, gstin, print_type, thermal_print_type, thermal_txt_file, billing_type, printer_name, bank_details, barcode_printer, barcode_per_row, barcode_width_mm, barcode_height_mm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    shopName, address, gstin, printType, thermalPrintType, thermalTxtFile, billingType, printerName, bankDetails, barcodePrinter, barcodePerRow, barcodeWidthMm, barcodeHeightMm
             );
         }
     }
@@ -462,36 +472,18 @@ public class AdminService {
         String cusPhn = request.getCusPhn() == null ? "" : request.getCusPhn().trim();
         long customerId = request.getCustomerId() == null ? 0 : request.getCustomerId();
         boolean isNew = false;
-        if (customerId <= 0) {
+        if (customerId <= 1) {
             List<Long> existing = jdbcTemplate.query(
-                    "SELECT id FROM customers WHERE name = ? LIMIT 1",
+                    "SELECT id FROM customers WHERE name = ? AND id > 1 LIMIT 1",
                     (rs, i) -> rs.getLong(1),
                     cusName
             );
             if (!existing.isEmpty()) {
                 customerId = existing.get(0);
             } else {
-                KeyHolder keys = new GeneratedKeyHolder();
-                jdbcTemplate.update(con -> {
-                    PreparedStatement ps = con.prepareStatement(
-                            "INSERT INTO customers(name, date, time, address, phone_number, gstin, is_gst, is_eligible_for_commission) VALUES (?, NOW(), NOW(), '', ?, '', 0, 0)",
-                            Statement.RETURN_GENERATED_KEYS
-                    );
-                    ps.setString(1, cusName);
-                    ps.setString(2, cusPhn);
-                    return ps;
-                }, keys);
-                Number key = keys.getKey();
-                if (key == null) {
-                    throw new RuntimeException("Failed to create customer.");
-                }
-                customerId = key.longValue();
-                jdbcTemplate.update("INSERT INTO customer_account(customer_id, advance, balance) VALUES (?, 0.00, 0.00)", customerId);
+                customerId = insertCustomer(cusName, cusPhn);
                 isNew = true;
             }
-        }
-        if (customerId <= 1) {
-            throw new RuntimeException("Please select a valid customer.");
         }
         int updated = jdbcTemplate.update(
                 "UPDATE prod_bill SET customerId = ?, cusName = ?, cusPhn = ? WHERE id = ? AND is_cancelled = 0 " +
@@ -538,7 +530,7 @@ public class AdminService {
         double oldItemTotal = toD(d.get("total"));
 
         List<Map<String, Object>> bills = jdbcTemplate.queryForList(
-                "SELECT id, customerId, total, payable, paid FROM prod_bill WHERE bill_display = ? AND is_cancelled = 0",
+                "SELECT id, customerId, total, payable, paid, IFNULL(extraDisc, 0) AS extraDisc FROM prod_bill WHERE bill_display = ? AND is_cancelled = 0",
                 billNo
         );
         if (bills.isEmpty()) {
@@ -554,10 +546,15 @@ public class AdminService {
         if (customerId <= 1) {
             throw new RuntimeException("Please assign the actual customer to this bill before exchange.");
         }
+        double extraDisc = toD(b.get("extraDisc"));
+        double extraShare = extraShareForLine(billId, oldItemTotal, extraDisc);
+        double oldNet = Math.max(0, scale(BigDecimal.valueOf(oldItemTotal - extraShare)));
         double newItemTotal = scale(BigDecimal.valueOf(newPrice).multiply(qty));
-        double diff = scale(BigDecimal.valueOf(newItemTotal - oldItemTotal));
-        double newBillTotal = scale(BigDecimal.valueOf(toD(b.get("total")) + diff));
-        double newBillPayable = scale(BigDecimal.valueOf(toD(b.get("payable")) + diff));
+        double lineDiff = scale(BigDecimal.valueOf(newItemTotal - oldItemTotal));
+        double diff = scale(BigDecimal.valueOf(newItemTotal - oldNet));
+        double newBillTotal = scale(BigDecimal.valueOf(toD(b.get("total")) + lineDiff));
+        double newBillPayable = Math.max(0, scale(BigDecimal.valueOf(toD(b.get("payable")) + diff)));
+        double newExtra = Math.max(0, scale(BigDecimal.valueOf(extraDisc - extraShare)));
 
         Long oldBatchId = latestBatch(oldProdId);
         Long newBatchId = latestBatch(request.getNewProdId());
@@ -600,7 +597,10 @@ public class AdminService {
                 "UPDATE prod_bill_details SET prod_id = ?, price = ?, disc = 0, total = ?, is_exchanged = 1 WHERE id = ?",
                 request.getNewProdId(), newPrice, newItemTotal, request.getDetailId()
         );
-        jdbcTemplate.update("UPDATE prod_bill SET total = ?, payable = ? WHERE id = ?", newBillTotal, newBillPayable, billId);
+        jdbcTemplate.update(
+                "UPDATE prod_bill SET total = ?, payable = ?, extraDisc = ? WHERE id = ?",
+                newBillTotal, newBillPayable, newExtra, billId
+        );
         jdbcTemplate.update(
                 "INSERT INTO pro_bill_exchange (bill_id, customer_id, old_prod_id, new_prod_id, uid, date_time) VALUES (?, ?, ?, ?, ?, NOW())",
                 billId, hasCustomer ? customerId : null, oldProdId, request.getNewProdId(), uid
@@ -658,13 +658,13 @@ public class AdminService {
             throw new RuntimeException("Return quantity (" + retQty + ") exceeds bill quantity (" + totalQty + ").");
         }
         double itemTotal = toD(d.get("total"));
-        double retAmount = BigDecimal.valueOf(itemTotal).multiply(retQty).divide(totalQty, 3, RoundingMode.HALF_UP).doubleValue();
+        double retGross = BigDecimal.valueOf(itemTotal).multiply(retQty).divide(totalQty, 3, RoundingMode.HALF_UP).doubleValue();
         boolean full = retQty.compareTo(totalQty) == 0;
         long fetchedBillId = toL(d.get("bill_id"));
         long prodId = toL(d.get("prod_id"));
 
         List<Map<String, Object>> bills = jdbcTemplate.queryForList(
-                "SELECT id, customerId, total, payable FROM prod_bill WHERE bill_display = ? AND is_cancelled = 0",
+                "SELECT id, customerId, total, payable, IFNULL(extraDisc, 0) AS extraDisc FROM prod_bill WHERE bill_display = ? AND is_cancelled = 0",
                 billNo
         );
         if (bills.isEmpty()) {
@@ -689,14 +689,22 @@ public class AdminService {
                     billId, batchId, prodId, retQty, lastStockNow(prodId).add(retQty), uid
             );
         }
-        double newBillTotal = Math.max(0, scale(BigDecimal.valueOf(toD(b.get("total")) - retAmount)));
+        double extraDisc = toD(b.get("extraDisc"));
+        double extraShareFull = extraShareForLine(billId, itemTotal, extraDisc);
+        double extraShareRet = scale(BigDecimal.valueOf(extraShareFull).multiply(retQty).divide(totalQty, 3, RoundingMode.HALF_UP));
+        double retAmount = Math.max(0, scale(BigDecimal.valueOf(retGross - extraShareRet)));
+        double newBillTotal = Math.max(0, scale(BigDecimal.valueOf(toD(b.get("total")) - retGross)));
         double newBillPayable = Math.max(0, scale(BigDecimal.valueOf(toD(b.get("payable")) - retAmount)));
-        jdbcTemplate.update("UPDATE prod_bill SET total = ?, payable = ? WHERE id = ?", newBillTotal, newBillPayable, billId);
+        double newExtra = Math.max(0, scale(BigDecimal.valueOf(extraDisc - extraShareRet)));
+        jdbcTemplate.update(
+                "UPDATE prod_bill SET total = ?, payable = ?, extraDisc = ? WHERE id = ?",
+                newBillTotal, newBillPayable, newExtra, billId
+        );
         if (full) {
             jdbcTemplate.update("UPDATE prod_bill_details SET is_exchanged = 2 WHERE id = ?", request.getDetailId());
         } else {
             BigDecimal newQty = totalQty.subtract(retQty).setScale(3, RoundingMode.HALF_UP);
-            double newItemTotal = Math.max(0, scale(BigDecimal.valueOf(itemTotal - retAmount)));
+            double newItemTotal = Math.max(0, scale(BigDecimal.valueOf(itemTotal - retGross)));
             jdbcTemplate.update("UPDATE prod_bill_details SET qty = ?, total = ? WHERE id = ?", newQty, newItemTotal, request.getDetailId());
         }
         jdbcTemplate.update(
@@ -876,6 +884,14 @@ public class AdminService {
         return billingType != null && billingType == 2 ? 2 : 1;
     }
 
+    private int normalizeThermalPrintType(Integer thermalPrintType) {
+        return thermalPrintType != null && thermalPrintType == 2 ? 2 : 1;
+    }
+
+    private int normalizeFlag(Integer value) {
+        return value != null && value == 1 ? 1 : 0;
+    }
+
     private void addIntColumn(String name, int def) {
         try {
             Integer count = jdbcTemplate.queryForObject(
@@ -976,6 +992,64 @@ public class AdminService {
                 productId
         );
         return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private long insertCustomer(String name, String phone) {
+        KeyHolder keys = new GeneratedKeyHolder();
+        jdbcTemplate.update(con -> {
+            PreparedStatement ps = con.prepareStatement(
+                    "INSERT INTO customers(name, date, time, address, phone_number, gstin, is_gst, is_eligible_for_commission) VALUES (?, NOW(), NOW(), '', ?, '', 0, 0)",
+                    Statement.RETURN_GENERATED_KEYS
+            );
+            ps.setString(1, name);
+            ps.setString(2, phone);
+            return ps;
+        }, keys);
+        Long last = jdbcTemplate.query("SELECT LAST_INSERT_ID()", rs -> rs.next() ? rs.getLong(1) : 0L);
+        long id = last != null && last > 0 ? last : generatedId(keys);
+        if (id <= 0) {
+            throw new RuntimeException("Failed to create customer.");
+        }
+        jdbcTemplate.update("INSERT INTO customer_account(customer_id, advance, balance) VALUES (?, 0.00, 0.00)", id);
+        return id;
+    }
+
+    private long generatedId(KeyHolder keys) {
+        try {
+            Number key = keys.getKey();
+            if (key != null && key.longValue() > 0) {
+                return key.longValue();
+            }
+        } catch (Exception ignored) {
+            // MySQL can return more than one generated column
+        }
+        List<Map<String, Object>> list = keys.getKeyList();
+        if (list != null) {
+            for (Map<String, Object> row : list) {
+                for (Object value : row.values()) {
+                    if (value instanceof Number n && n.longValue() > 0) {
+                        return n.longValue();
+                    }
+                }
+            }
+        }
+        return 0;
+    }
+
+    private double extraShareForLine(long billId, double lineTotal, double extraDisc) {
+        if (extraDisc <= 0 || lineTotal <= 0) {
+            return 0;
+        }
+        Double billSale = jdbcTemplate.query(
+                "SELECT COALESCE(SUM(total), 0) FROM prod_bill_details " +
+                        "WHERE bill_id = ? AND IFNULL(is_cancelled, 0) = 0 AND IFNULL(is_exchanged, 0) <> 2",
+                rs -> rs.next() ? rs.getDouble(1) : 0d,
+                billId
+        );
+        if (billSale == null || billSale <= 0) {
+            return 0;
+        }
+        return scale(BigDecimal.valueOf(extraDisc * (lineTotal / billSale)));
     }
 
     private double scale(BigDecimal value) {

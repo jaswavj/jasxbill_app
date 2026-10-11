@@ -75,7 +75,7 @@ const ExpenseReportPage: React.FC = () => {
       </div>
       {rows && (
         <>
-          <div className="crd-stats" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 12 }}>
+          <div className="crd-stats crd-stats-4" style={{ marginBottom: 12 }}>
             <div className="mst-card crd-stat">
               <div className="crd-stat-l">Total Entries</div>
               <div className="crd-stat-v">{total}</div>

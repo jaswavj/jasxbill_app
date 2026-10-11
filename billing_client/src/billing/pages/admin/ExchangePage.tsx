@@ -25,6 +25,7 @@ const ExchangePage: React.FC = () => {
   const [retQty, setRetQty] = useState('');
   const [busy, setBusy] = useState(false);
   const timer = useRef<number | null>(null);
+  const assignLock = useRef(false);
 
   const load = async (no = billNo) => {
     if (!no.trim()) return;
@@ -75,15 +76,17 @@ const ExchangePage: React.FC = () => {
   };
 
   const assign = async () => {
+    if (assignLock.current || busy) return;
     if (!bill || !custName.trim()) {
       toast.warning('Customer name is required.');
       return;
     }
+    assignLock.current = true;
     setBusy(true);
     try {
       const res = adminData<any>(await adminApi.assignCustomer({
         billId: bill.billId,
-        customerId: custId,
+        customerId: custId > 1 ? custId : 0,
         cusName: custName.trim(),
         cusPhn: custPhone.trim(),
       }));
@@ -94,6 +97,7 @@ const ExchangePage: React.FC = () => {
     } catch (err) {
       toast.error(adminError(err, 'Could not assign customer'));
     } finally {
+      assignLock.current = false;
       setBusy(false);
     }
   };
@@ -151,12 +155,13 @@ const ExchangePage: React.FC = () => {
       </div>
 
       {needCustomer && bill && custOpen && (
-        <div className="pos-modal-back">
-          <div className="pos-modal pos-save-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="pos-modal-head">
-              <h4>Assign Customer — Bill #{bill.billNo}</h4>
-              <button className="pos-btn pos-btn-outline" type="button" onClick={() => setCustOpen(false)}>Close</button>
+        <div className="crd-modal" onClick={() => setCustOpen(false)}>
+          <div className="crd-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="crd-modal-h">
+              <h4 style={{ margin: 0 }}>Assign Customer — Bill #{bill.billNo}</h4>
+              <button className="mst-btn mst-btn-outline" type="button" onClick={() => setCustOpen(false)}>Close</button>
             </div>
+            <div className="crd-modal-body" style={{ padding: 16 }}>
             <div className="mst-note" style={{ marginBottom: 12 }}>
               This bill has no customer. Select an existing customer, or type a new name and phone to add one — same as billing.
             </div>
@@ -198,11 +203,12 @@ const ExchangePage: React.FC = () => {
             </div>
             {custId > 0 && <div className="pos-banner" style={{ marginBottom: 12 }}>Existing customer selected</div>}
             {custId <= 0 && custName.trim() !== '' && <div className="mst-note" style={{ marginBottom: 12 }}>New customer will be created on save.</div>}
-            <div className="pos-acts">
-              <button className="pos-btn" type="button" disabled={busy} onClick={assign}>
+            <div className="mst-actions">
+              <button className="mst-btn mst-btn-primary" type="button" disabled={busy} onClick={assign}>
                 {custId > 0 ? 'Assign Customer' : 'Add & Assign Customer'}
               </button>
-              <button className="pos-btn pos-btn-outline" type="button" onClick={() => setCustOpen(false)}>Cancel</button>
+              <button className="mst-btn mst-btn-outline" type="button" onClick={() => setCustOpen(false)}>Cancel</button>
+            </div>
             </div>
           </div>
         </div>

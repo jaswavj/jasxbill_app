@@ -33,23 +33,34 @@ public class StatisticsService {
         if (billWise) {
             List<Map<String, Object>> rows = jdbcTemplate.query(
                     "SELECT a.bill_display, a.date, IFNULL(a.cusName,'-') AS cusName, "
+                            + "IFNULL(a.prodDisc, 0) AS prod_disc, IFNULL(a.extraDisc, 0) AS extra_disc, "
+                            + "IFNULL(a.exchPoint, 0) AS exch_point, "
                             + "SUM(CASE WHEN IFNULL(bd.is_cancelled,0)=0 AND IFNULL(bd.is_exchanged,0)<>2 "
                             + "THEN bd.cost * bd.qty ELSE 0 END) AS total_cost, "
                             + "SUM(CASE WHEN IFNULL(bd.is_cancelled,0)=0 AND IFNULL(bd.is_exchanged,0)<>2 "
-                            + "THEN bd.total ELSE 0 END) AS sale_total "
+                            + "THEN bd.total ELSE 0 END) AS sale_total, "
+                            + "MAX(CASE WHEN IFNULL(bd.is_exchanged,0)=1 THEN 1 ELSE 0 END) AS has_exchange "
                             + "FROM prod_bill a JOIN prod_bill_details bd ON a.id = bd.bill_id "
                             + "WHERE a.date BETWEEN ? AND ? AND a.is_cancelled = 0 "
-                            + "GROUP BY a.id, a.bill_display, a.date, a.cusName "
+                            + "GROUP BY a.id, a.bill_display, a.date, a.cusName, a.prodDisc, a.extraDisc, a.exchPoint "
                             + "ORDER BY a.date DESC, a.id DESC",
                     (rs, i) -> {
                         double cost = rs.getDouble("total_cost");
-                        double sale = rs.getDouble("sale_total");
+                        double extra = rs.getDouble("extra_disc");
+                        double exchPoint = rs.getDouble("exch_point");
+                        double prodDisc = rs.getDouble("prod_disc");
+                        double sale = rs.getDouble("sale_total") - extra;
                         double profit = sale - cost;
+                        String status = rs.getInt("has_exchange") == 1 ? "Exchanged" : "Sale";
                         Map<String, Object> row = new LinkedHashMap<>();
                         row.put("billNo", rs.getString("bill_display"));
                         row.put("date", asStr(rs.getObject("date")));
                         row.put("customer", rs.getString("cusName"));
+                        row.put("status", status);
                         row.put("cost", cost);
+                        row.put("prodDisc", prodDisc);
+                        row.put("extraDisc", extra);
+                        row.put("exchPoint", exchPoint);
                         row.put("sale", sale);
                         row.put("profit", profit);
                         row.put("margin", cost > 0 ? (profit / cost) * 100 : 0);
@@ -61,7 +72,11 @@ public class StatisticsService {
             fillProfitTotals(data, rows);
         } else {
             List<Map<String, Object>> rows = jdbcTemplate.query(
-                    "SELECT a.bill_display, p.name, bd.qty, bd.cost, (bd.cost * bd.qty) AS total_cost, bd.total, a.date "
+                    "SELECT a.bill_display, p.name, bd.qty, bd.cost, bd.price, (bd.cost * bd.qty) AS total_cost, "
+                            + "bd.total, IFNULL(bd.disc, 0) AS prod_disc, IFNULL(a.extraDisc, 0) AS extra_disc, "
+                            + "IFNULL(bd.is_exchanged, 0) AS exch, a.date, "
+                            + "(SELECT SUM(x.total) FROM prod_bill_details x WHERE x.bill_id = a.id "
+                            + "AND IFNULL(x.is_cancelled,0)=0 AND IFNULL(x.is_exchanged,0)<>2) AS bill_sale "
                             + "FROM prod_bill a JOIN prod_bill_details bd ON a.id = bd.bill_id "
                             + "JOIN prod_product p ON bd.prod_id = p.id "
                             + "WHERE a.date BETWEEN ? AND ? AND a.is_cancelled = 0 "
@@ -69,17 +84,27 @@ public class StatisticsService {
                             + "ORDER BY a.date DESC, a.bill_display",
                     (rs, i) -> {
                         double cost = rs.getDouble("total_cost");
-                        double sale = rs.getDouble("total");
+                        double lineSale = rs.getDouble("total");
+                        double extra = rs.getDouble("extra_disc");
+                        double billSale = rs.getDouble("bill_sale");
+                        int exch = rs.getInt("exch");
+                        double extraShare = billSale > 0 ? extra * (lineSale / billSale) : 0;
+                        double sale = lineSale - extraShare;
                         double profit = sale - cost;
+                        String status = exch == 1 ? "Exchanged" : "Sale";
                         Map<String, Object> row = new LinkedHashMap<>();
                         row.put("billNo", rs.getString("bill_display"));
                         row.put("productName", rs.getString("name"));
                         row.put("qty", rs.getDouble("qty"));
                         row.put("costPrice", rs.getDouble("cost"));
+                        row.put("mrp", rs.getDouble("price"));
                         row.put("cost", cost);
+                        row.put("prodDisc", rs.getDouble("prod_disc"));
+                        row.put("extraDisc", extraShare);
                         row.put("sale", sale);
                         row.put("profit", profit);
                         row.put("margin", cost > 0 ? (profit / cost) * 100 : 0);
+                        row.put("status", status);
                         row.put("date", asStr(rs.getObject("date")));
                         return row;
                     },
@@ -88,6 +113,10 @@ public class StatisticsService {
             data.put("rows", rows);
             fillProfitTotals(data, rows);
         }
+        data.put("totalExchPoint", sum(
+                "SELECT COALESCE(SUM(IFNULL(exchPoint, 0)), 0) FROM prod_bill WHERE is_cancelled = 0 AND date BETWEEN ? AND ?",
+                fromDate, toDate
+        ));
         return data;
     }
 
@@ -104,15 +133,17 @@ public class StatisticsService {
         String prevStart = prev.atDay(1).format(ISO);
         String prevEnd = prev.atEndOfMonth().format(ISO);
 
-        double sales = sum("SELECT COALESCE(SUM(payable),0) FROM prod_bill WHERE is_cancelled = 0 AND date BETWEEN ? AND ?", start, end);
-        double lastSales = sum("SELECT COALESCE(SUM(payable),0) FROM prod_bill WHERE is_cancelled = 0 AND date BETWEEN ? AND ?", prevStart, prevEnd);
+        String saleAmt = "COALESCE(SUM(IFNULL(payable,0) + IFNULL(exchPoint,0)),0)";
+        double sales = sum("SELECT " + saleAmt + " FROM prod_bill WHERE is_cancelled = 0 AND date BETWEEN ? AND ?", start, end);
+        double lastSales = sum("SELECT " + saleAmt + " FROM prod_bill WHERE is_cancelled = 0 AND date BETWEEN ? AND ?", prevStart, prevEnd);
+        double exchPoint = sum("SELECT COALESCE(SUM(IFNULL(exchPoint,0)),0) FROM prod_bill WHERE is_cancelled = 0 AND date BETWEEN ? AND ?", start, end);
         double purchase = sum("SELECT COALESCE(SUM(total),0) FROM prod_purchase WHERE is_cancelled = 0 AND ent_date BETWEEN ? AND ?", start, end);
         double lastPurchase = sum("SELECT COALESCE(SUM(total),0) FROM prod_purchase WHERE is_cancelled = 0 AND ent_date BETWEEN ? AND ?", prevStart, prevEnd);
         double expense = sum("SELECT COALESCE(SUM(amount),0) FROM expense_entry WHERE is_active = 1 AND DATE(exc_date_time) BETWEEN ? AND ?", start, end);
         double lastExpense = sum("SELECT COALESCE(SUM(amount),0) FROM expense_entry WHERE is_active = 1 AND DATE(exc_date_time) BETWEEN ? AND ?", prevStart, prevEnd);
         double profit = productProfit(start, end);
         double lastProfit = productProfit(prevStart, prevEnd);
-        double todaySales = sum("SELECT COALESCE(SUM(payable),0) FROM prod_bill WHERE is_cancelled = 0 AND DATE(date) = CURDATE()");
+        double todaySales = sum("SELECT " + saleAmt + " FROM prod_bill WHERE is_cancelled = 0 AND DATE(date) = CURDATE()");
         Integer todayBillsVal = jdbcTemplate.query(
                 "SELECT COUNT(*) FROM prod_bill WHERE is_cancelled = 0 AND DATE(date) = CURDATE()",
                 rs -> rs.next() ? rs.getInt(1) : 0
@@ -121,7 +152,7 @@ public class StatisticsService {
 
         Map<String, Double> salesByDay = new HashMap<>();
         jdbcTemplate.query(
-                "SELECT DATE(date) AS d, COALESCE(SUM(payable),0) AS t FROM prod_bill WHERE is_cancelled = 0 AND date BETWEEN ? AND ? GROUP BY DATE(date)",
+                "SELECT DATE(date) AS d, COALESCE(SUM(IFNULL(payable,0) + IFNULL(exchPoint,0)),0) AS t FROM prod_bill WHERE is_cancelled = 0 AND date BETWEEN ? AND ? GROUP BY DATE(date)",
                 (rs, i) -> {
                     salesByDay.put(asStr(rs.getObject("d")), rs.getDouble("t"));
                     return null;
@@ -166,6 +197,7 @@ public class StatisticsService {
         data.put("netProfit", sales - purchase - expense);
         data.put("todaySales", todaySales);
         data.put("todayBills", todayBills);
+        data.put("exchPoint", exchPoint);
         data.put("daily", daily);
         data.put("bills", List.of());
         return data;
@@ -425,15 +457,19 @@ public class StatisticsService {
     }
 
     private void fillProfitTotals(Map<String, Object> data, List<Map<String, Object>> rows) {
-        double cost = 0, sale = 0, profit = 0;
+        double cost = 0, sale = 0, profit = 0, extraDisc = 0, prodDisc = 0;
         for (Map<String, Object> row : rows) {
             cost += toD(row.get("cost"));
             sale += toD(row.get("sale"));
             profit += toD(row.get("profit"));
+            extraDisc += toD(row.get("extraDisc"));
+            prodDisc += toD(row.get("prodDisc"));
         }
         data.put("totalCost", cost);
         data.put("totalSale", sale);
         data.put("totalProfit", profit);
+        data.put("totalExtraDisc", extraDisc);
+        data.put("totalProdDisc", prodDisc);
         data.put("marginPct", cost > 0 ? (profit / cost) * 100 : 0);
     }
 

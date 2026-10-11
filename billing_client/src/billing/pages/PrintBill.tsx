@@ -76,11 +76,13 @@ const PrintBill: React.FC = () => {
       byRate[gstPer].sgst += gstAmt / 2;
     });
     const extra = Number(bill?.extraDiscount || 0);
+    const exchPoint = Number(bill?.exchangePointUsed || 0);
     return {
       items, amount, discount, qty, taxable, cgst, sgst, gst, byRate,
       subTotal: amount + discount,
-      finalPaid: amount - extra,
+      finalPaid: amount - extra - exchPoint,
       extra,
+      exchPoint,
     };
   }, [bill]);
 
@@ -142,6 +144,7 @@ const PrintBill: React.FC = () => {
           <div className="th-row"><span>Sub Total:</span><span>₹ {money(calc.subTotal)}</span></div>
           {calc.discount > 0 && <div className="th-row"><span>Item Discount:</span><span>- ₹ {money(calc.discount)}</span></div>}
           {calc.extra > 0 && <div className="th-row"><span>Extra Discount:</span><span>- ₹ {money(calc.extra)}</span></div>}
+          {calc.exchPoint > 0 && <div className="th-row"><span>Exchange Point:</span><span>- ₹ {money(calc.exchPoint)}</span></div>}
           <div className="th-row th-grand"><span>TOTAL:</span><span>₹ {money(calc.finalPaid)}</span></div>
           <div className="th-row"><span>Paid:</span><span>₹ {money(bill.paid)}</span></div>
           {Number(bill.balance) !== 0 && (

@@ -11,6 +11,8 @@ import javax.print.PrintService;
 import javax.print.PrintServiceLookup;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -22,8 +24,8 @@ import java.util.Map;
 /**
  * ESC/POS thermal print.
  * print_type 2 = A4 browser preview; 1 = thermal.
- * If this machine has the named printer, print RAW here.
- * If it does not (cloud Linux), return base64 bytes for the shop-PC print agent.
+ * thermal_print_type 1 = local deploy (print on this machine or error).
+ * thermal_print_type 2 = cloud deploy (shop-PC print agent via start-print-agent.bat).
  */
 @Service
 @RequiredArgsConstructor
@@ -60,11 +62,9 @@ public class PosPrinterService {
     }
 
     public PrintDispatchData printReceipt(String billNo) {
+        CompanyDetailsData company = adminService.company();
         PrintBillData bill = readService.printBill(billNo);
-        String printerName = firstName(bill.getPrinterName(), adminService.company().getPrinterName());
-        if (printerName.isBlank()) {
-            throw new RuntimeException("Set the thermal printer name in Company Details.");
-        }
+        String printerName = firstName(bill.getPrinterName(), company.getPrinterName());
         int width = receiptWidth(printerName);
         byte[] receipt;
         try {
@@ -72,23 +72,116 @@ public class PosPrinterService {
         } catch (Exception ex) {
             throw new RuntimeException("Could not build receipt: " + (ex.getMessage() == null ? "Unknown error" : ex.getMessage()));
         }
-        PrintService service = findPrintService(printerName);
-        String localName = service != null ? service.getName() : printerName;
-        if (printOnThisMachine(localName, printerName, receipt)) {
+        int thermalPrintType = company.getThermalPrintType() == null ? 1 : company.getThermalPrintType();
+        if (thermalPrintType == 2) {
+            if (printerName.isBlank()) {
+                throw new RuntimeException("Printer name not found.");
+            }
             PrintDispatchData data = new PrintDispatchData();
-            data.setType("printed");
+            data.setType("local");
             data.setBillNo(billNo);
-            data.setPrinterName(localName);
-            data.setMessage("Printed to: " + localName);
+            data.setPrinterName(printerName);
+            data.setPayload(Base64.getEncoder().encodeToString(receipt));
+            data.setMessage("Send to print agent on this PC. Keep start-print-agent.bat open.");
             return data;
         }
+        if (printerName.isBlank()) {
+            saveBillTxtOnError(company, bill, width);
+            throw new RuntimeException("Printer name not found.");
+        }
+        PrintService service = findPrintService(printerName);
+        String localName = service != null ? service.getName() : printerName;
+        if (!printOnThisMachine(localName, printerName, receipt)) {
+            saveBillTxtOnError(company, bill, width);
+            throw new RuntimeException("Printer name not found.");
+        }
         PrintDispatchData data = new PrintDispatchData();
-        data.setType("local");
+        data.setType("printed");
         data.setBillNo(billNo);
-        data.setPrinterName(printerName);
-        data.setPayload(Base64.getEncoder().encodeToString(receipt));
-        data.setMessage("Send to print agent on this PC");
+        data.setPrinterName(localName);
+        data.setMessage("Printed to: " + localName);
         return data;
+    }
+
+    private void saveBillTxtOnError(CompanyDetailsData company, PrintBillData bill, int width) {
+        if (company.getThermalTxtFile() == null || company.getThermalTxtFile() != 1) {
+            return;
+        }
+        try {
+            Path dir = Path.of(System.getProperty("user.dir"), "bills");
+            Files.createDirectories(dir);
+            String name = nz(bill.getBillDisplay()).replaceAll("[^A-Za-z0-9._-]", "_");
+            if (name.isBlank()) {
+                name = "bill";
+            }
+            Files.writeString(dir.resolve(name + ".txt"), buildReceiptText(bill, width), StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+            // keep the printer error as the main failure
+        }
+    }
+
+    private String buildReceiptText(PrintBillData bill, int width) {
+        StringBuilder sb = new StringBuilder();
+        appendCentered(sb, nz(bill.getCompanyName()), width);
+        if (!blank(bill.getCompanyAddress())) {
+            for (String line : bill.getCompanyAddress().split("\\r?\\n")) {
+                appendCentered(sb, line, width);
+            }
+        }
+        if (!blank(bill.getCompanyGstin())) {
+            appendCentered(sb, "GSTIN: " + bill.getCompanyGstin(), width);
+        }
+        sb.append(divider(width));
+        String date = nz(bill.getDate());
+        sb.append(padRight("Bill: " + nz(bill.getBillDisplay()), width - date.length())).append(date).append('\n');
+        sb.append("Cust: ").append(nz(bill.getCustomerName())).append('\n');
+        if (hasValue(bill.getCustomerPhone())) {
+            sb.append("Ph: ").append(bill.getCustomerPhone()).append('\n');
+        }
+        if (hasValue(bill.getCustomerGstin())) {
+            sb.append("GSTIN: ").append(bill.getCustomerGstin()).append('\n');
+        }
+        sb.append(divider(width));
+        sb.append(itemHeader(width));
+        sb.append(divider(width));
+        Totals totals = appendItems(sb, bill, width);
+        sb.append(divider(width));
+        sb.append(formatTotal("Items:", String.valueOf((int) totals.qty), width));
+        if (totals.discount > 0) {
+            sb.append(formatTotal("Item Disc:", "-Rs " + DF.format(totals.discount), width));
+        }
+        if (totals.extra > 0) {
+            sb.append(formatTotal("Extra Disc:", "-Rs " + DF.format(totals.extra), width));
+        }
+        if (totals.exchPoint > 0) {
+            sb.append(formatTotal("Exchange Point:", "-Rs " + DF.format(totals.exchPoint), width));
+        }
+        sb.append(divider(width));
+        sb.append(formatTotal("TOTAL:", "Rs " + DF.format(totals.finalPaid), width));
+        sb.append(divider(width));
+        sb.append(formatTotal("Paid:", "Rs " + DF.format(n(bill.getPaid())), width));
+        if (n(bill.getBalance()) != 0) {
+            String label = bill.getBalance() > 0 ? "Balance:" : "Change:";
+            sb.append(formatTotal(label, "Rs " + DF.format(Math.abs(bill.getBalance())), width));
+        }
+        if (totals.gst > 0) {
+            sb.append(divider(width));
+            sb.append("GST Summary:\n");
+            List<Integer> rates = new ArrayList<>(totals.taxable.keySet());
+            Collections.sort(rates);
+            for (Integer rate : rates) {
+                if (rate > 0) {
+                    sb.append("GST").append(rate).append("% Txbl:Rs").append(DF.format(totals.taxable.get(rate))).append('\n');
+                    sb.append("CGST:Rs").append(DF.format(totals.cgst.get(rate)))
+                            .append(" SGST:Rs").append(DF.format(totals.sgst.get(rate))).append('\n');
+                }
+            }
+            sb.append(formatTotal("Total GST:", "Rs " + DF.format(totals.gst), width));
+        }
+        sb.append(divider(width));
+        appendCentered(sb, nz(bill.getAmountInWords()).toUpperCase(), width);
+        appendCentered(sb, "Thank You! Visit Again", width);
+        return sb.toString();
     }
 
     private int receiptWidth(String printerName) {
@@ -170,6 +263,9 @@ public class PosPrinterService {
         if (totals.extra > 0) {
             write(out, formatTotal("Extra Disc:", "-Rs " + DF.format(totals.extra), width));
         }
+        if (totals.exchPoint > 0) {
+            write(out, formatTotal("Exchange Point:", "-Rs " + DF.format(totals.exchPoint), width));
+        }
         write(out, divider(width));
         write(out, BOLD_ON);
         write(out, formatTotal("TOTAL:", "Rs " + DF.format(totals.finalPaid), width));
@@ -209,7 +305,9 @@ public class PosPrinterService {
     private Totals appendItems(StringBuilder sb, PrintBillData bill, int width) {
         Totals totals = new Totals();
         totals.extra = n(bill.getExtraDiscount());
+        totals.exchPoint = n(bill.getExchangePointUsed());
         if (bill.getItems() == null) {
+            totals.finalPaid = Math.max(0, totals.amount - totals.extra - totals.exchPoint);
             return totals;
         }
         for (PrintBillData.PrintLineData item : bill.getItems()) {
@@ -232,7 +330,7 @@ public class PosPrinterService {
                 sb.append(padLeft("Disc: -" + DF.format(disc), width)).append('\n');
             }
         }
-        totals.finalPaid = totals.amount - totals.extra;
+        totals.finalPaid = Math.max(0, totals.amount - totals.extra - totals.exchPoint);
         return totals;
     }
 
@@ -302,6 +400,28 @@ public class PosPrinterService {
         return " ".repeat(width - s.length()) + s;
     }
 
+    private void appendCentered(StringBuilder sb, String text, int width) {
+        if (blank(text)) {
+            return;
+        }
+        String remaining = text.trim();
+        while (remaining.length() > width) {
+            sb.append(centerLine(remaining.substring(0, width), width));
+            remaining = remaining.substring(width).trim();
+        }
+        if (!remaining.isEmpty()) {
+            sb.append(centerLine(remaining, width));
+        }
+    }
+
+    private String centerLine(String text, int width) {
+        if (text.length() >= width) {
+            return text + "\n";
+        }
+        int pad = (width - text.length()) / 2;
+        return " ".repeat(pad) + text + "\n";
+    }
+
     private void write(ByteArrayOutputStream out, byte[] data) {
         out.writeBytes(data);
     }
@@ -337,6 +457,7 @@ public class PosPrinterService {
         double amount;
         double discount;
         double extra;
+        double exchPoint;
         double gst;
         double finalPaid;
         Map<Integer, Double> taxable = new HashMap<>();

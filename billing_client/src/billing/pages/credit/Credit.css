@@ -9,6 +9,10 @@
   margin-bottom: 14px;
 }
 
+.crd-stats-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
 .crd-stat {
   text-align: center;
   padding: 14px 10px;
@@ -279,11 +283,24 @@
 
 @media (max-width: 900px) {
   .crd-stats {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .crd-stat-v {
+    font-size: 1.15rem;
   }
 
   .crd-right {
     position: static;
     flex: 1 1 100%;
+  }
+
+  .crd-modal {
+    padding: 16px;
+    align-items: center;
+  }
+
+  .crd-modal-box {
+    max-height: calc(100dvh - 32px);
   }
 }

@@ -9,6 +9,8 @@ const empty = {
   address: '',
   gstin: '',
   printType: 1,
+  thermalPrintType: 1,
+  thermalTxtFile: 0,
   billingType: 1,
   printerName: '',
   bankDetails: '',
@@ -30,6 +32,8 @@ const CompanyDetailsPage: React.FC = () => {
           ...empty,
           ...data,
           billingType: data.billingType === 2 ? 2 : 1,
+          thermalPrintType: data.thermalPrintType === 2 ? 2 : 1,
+          thermalTxtFile: data.thermalTxtFile === 1 ? 1 : 0,
           barcodePerRow: Number(data.barcodePerRow) || 1,
           barcodeWidthMm: Number(data.barcodeWidthMm) || 50,
           barcodeHeightMm: Number(data.barcodeHeightMm) || 30,
@@ -60,6 +64,8 @@ const CompanyDetailsPage: React.FC = () => {
         address: form.address.trim(),
         gstin: form.gstin.trim().toUpperCase(),
         printerName: form.printType === 1 ? form.printerName.trim() : '',
+        thermalPrintType: form.thermalPrintType === 2 ? 2 : 1,
+        thermalTxtFile: form.thermalTxtFile === 1 ? 1 : 0,
         bankDetails: form.bankDetails.trim(),
         barcodePrinter: form.barcodePrinter.trim(),
         billingType: form.billingType === 2 ? 2 : 1,
@@ -114,11 +120,35 @@ const CompanyDetailsPage: React.FC = () => {
             </select>
           </div>
           {form.printType === 1 && (
-            <div className="mst-fg">
-              <label>Printer Name <span className="req">*</span></label>
-              <input className="mst-inp" value={form.printerName} onChange={(e) => setForm({ ...form, printerName: e.target.value })} placeholder="Printer share name" />
-              <div className="mst-note">Use the Windows printer share name, e.g. POS-80</div>
-            </div>
+            <>
+              <div className="mst-fg">
+                <label>Thermal Print Type <span className="req">*</span></label>
+                <select className="mst-sel" value={form.thermalPrintType} onChange={(e) => setForm({ ...form, thermalPrintType: Number(e.target.value) })}>
+                  <option value={1}>Local deploy</option>
+                  <option value={2}>Cloud deploy</option>
+                </select>
+                <div className="mst-note">
+                  {form.thermalPrintType === 2
+                    ? 'Cloud sends the receipt to the shop PC. Keep start-print-agent.bat open while billing.'
+                    : 'Local prints on this machine using the Windows printer name below.'}
+                </div>
+              </div>
+              <div className="mst-fg">
+                <label>Printer Name <span className="req">*</span></label>
+                <input className="mst-inp" value={form.printerName} onChange={(e) => setForm({ ...form, printerName: e.target.value })} placeholder="Windows printer name" />
+                <div className="mst-note">Use the Windows printer name, e.g. POS-80</div>
+              </div>
+              {form.thermalPrintType === 1 && (
+                <div className="mst-fg">
+                  <label>Save bill as text if print fails</label>
+                  <select className="mst-sel" value={form.thermalTxtFile} onChange={(e) => setForm({ ...form, thermalTxtFile: Number(e.target.value) })}>
+                    <option value={0}>No</option>
+                    <option value={1}>Yes — save in bills folder</option>
+                  </select>
+                  <div className="mst-note">If the thermal printer fails, save a .txt copy in the bills folder. Off does not save a file.</div>
+                </div>
+              )}
+            </>
           )}
           <div className="mst-fg">
             <label>Barcode Printer Name</label>

@@ -9,6 +9,8 @@ public class CompanyDetailsData {
     private String address;
     private String gstin;
     private Integer printType;
+    private Integer thermalPrintType;
+    private Integer thermalTxtFile;
     private Integer billingType;
     private String printerName;
     private String bankDetails;

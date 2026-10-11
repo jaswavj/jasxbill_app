@@ -46,11 +46,13 @@ export const A4Invoice: React.FC<{ bill: any }> = ({ bill }) => {
       byRate[gstPer].sgst += gstAmt / 2;
     });
     const extra = Number(bill?.extraDiscount || 0);
+    const exchPoint = Number(bill?.exchangePointUsed || 0);
     return {
       items, amount, discount, qty, taxable, cgst, sgst, byRate,
       subTotal: amount + discount,
-      finalPaid: amount - extra,
+      finalPaid: amount - extra - exchPoint,
       extra,
+      exchPoint,
     };
   }, [bill]);
 
@@ -163,6 +165,7 @@ export const A4Invoice: React.FC<{ bill: any }> = ({ bill }) => {
             <div className="a4-line"><span>Sub Total</span><span>₹ {money(calc.subTotal)}</span></div>
             {calc.discount > 0 && <div className="a4-line"><span>Item Discount</span><span>- ₹ {money(calc.discount)}</span></div>}
             {calc.extra > 0 && <div className="a4-line"><span>Extra Discount</span><span>- ₹ {money(calc.extra)}</span></div>}
+            {calc.exchPoint > 0 && <div className="a4-line"><span>Exchange Point</span><span>- ₹ {money(calc.exchPoint)}</span></div>}
             <div className="a4-line total"><span>Total</span><span>₹ {money(calc.finalPaid)}</span></div>
             {!isQuote && <div className="a4-line"><span>Paid</span><span>₹ {money(bill.paid)}</span></div>}
             {!isQuote && <div className="a4-line"><span>Balance</span><span>₹ {money(bill.balance)}</span></div>}
