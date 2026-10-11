@@ -358,7 +358,6 @@ const StatsDashboardPage: React.FC = () => {
                             {card.stateLabel && <span className="mb-chip">{card.stateLabel}</span>}
                             {card.exchanged && <span className="mb-chip exch">Exchanged</span>}
                             {card.returned && <span className="mb-chip ret">Returned</span>}
-                            {!card.exchanged && !card.returned && <span className="mb-chip sale">No Exchange</span>}
                           </div>
                         </div>
                         <div className="mb-amt">
