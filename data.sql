@@ -281,13 +281,14 @@ CREATE TABLE `heading` (
   `head2` varchar(255) DEFAULT NULL,
   `head3` varchar(255) DEFAULT NULL,
   `active` int DEFAULT '0',
+  `starting_date` date DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
 
 /*Data for the table `heading` */
 
-insert  into `heading`(`id`,`head1`,`head2`,`head3`,`active`) values 
-(1,'Category','Brand','Product',200);
+insert  into `heading`(`id`,`head1`,`head2`,`head3`,`active`,`starting_date`) values 
+(1,'Category','Brand','Product',500,'2026-10-11');
 
 /*Table structure for table `order_tables` */
 
@@ -350,8 +351,8 @@ CREATE TABLE `prod_batch` (
 /*Data for the table `prod_batch` */
 
 insert  into `prod_batch`(`id`,`name`,`product_id`,`cost`,`mrp`,`commission`,`stock`,`disc_type`,`discount`,`date`,`time`,`added_stock`,`uid`) values 
-(1,'Z1',1,100.000,200.000,0.000,0.00,0,0.000,'2026-10-11','12:32:54',0.00,1),
-(2,'Z2',2,200.000,400.000,0.000,0.00,1,20.000,'2026-10-11','12:33:29',0.00,1);
+(1,'Z1',1,100.000,200.000,0.000,0.00,1,10.000,'2026-10-11','12:32:54',0.00,1),
+(2,'Z2',2,200.000,400.000,0.000,0.00,0,0.000,'2026-10-11','12:33:29',0.00,1);
 
 /*Table structure for table `prod_batch_updated` */
 
@@ -377,9 +378,14 @@ CREATE TABLE `prod_batch_updated` (
   KEY `prod` (`product_id`),
   KEY `disc` (`disc_type`),
   KEY `uid` (`uid`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1;
 
 /*Data for the table `prod_batch_updated` */
+
+insert  into `prod_batch_updated`(`id`,`name`,`product_id`,`cost`,`mrp`,`stock`,`disc_type`,`discount`,`date`,`time`,`added_stock`,`uid`,`updatedDate`,`updatedTime`,`updatedUid`) values 
+(1,'Z1',1,100.000,200.000,0.00,0,0.000,NULL,'00:00:00',0.00,0,'2026-10-13','16:53:09',1),
+(2,'Z2',2,200.000,400.000,0.00,1,20.000,NULL,'00:00:00',0.00,0,'2026-10-13','16:53:50',1),
+(3,'Z2',2,200.000,400.000,0.00,2,20.000,NULL,'00:00:00',0.00,0,'2026-10-13','16:54:13',1);
 
 /*Table structure for table `prod_batch_zero_stock_bill` */
 

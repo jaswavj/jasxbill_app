@@ -113,6 +113,7 @@ public class BillingReadService {
         ));
         data.setProducts(jdbcTemplate.query(
                 "SELECT a.id, a.code, a.name, a.category_id, b.mrp AS selected_mrp, " +
+                        "IFNULL(b.disc_type, 0) AS disc_type, IFNULL(b.discount, 0) AS master_discount, " +
                         "ROUND(CASE WHEN b.disc_type = 1 THEN b.discount " +
                         "WHEN b.disc_type = 2 THEN (b.mrp * b.discount) / 100 ELSE 0 END, 2) AS discount_amount, " +
                         "b.id AS batch_id, a.unit_id, IFNULL(u.name,'') AS unit_name, IFNULL(b.commission,0) AS commission, " +
@@ -738,6 +739,7 @@ public class BillingReadService {
 
     private String productLookupSql(String where) {
         return "SELECT a.id, a.code, a.name, b.mrp AS selected_mrp, " +
+                "IFNULL(b.disc_type, 0) AS disc_type, IFNULL(b.discount, 0) AS master_discount, " +
                 "ROUND(CASE WHEN b.disc_type = 1 THEN b.discount " +
                 "WHEN b.disc_type = 2 THEN (b.mrp * b.discount) / 100 ELSE 0 END, 2) AS discount_amount, " +
                 "b.id AS batch_id, a.unit_id, IFNULL(u.name,'') AS unit_name, IFNULL(b.commission,0) AS commission, " +
@@ -752,6 +754,8 @@ public class BillingReadService {
         data.setCode(rs.getString("code"));
         data.setName(rs.getString("name"));
         data.setMrp(rs.getDouble("selected_mrp"));
+        data.setDiscType(rs.getInt("disc_type"));
+        data.setProductDiscount(rs.getDouble("master_discount"));
         data.setDiscount(rs.getDouble("discount_amount"));
         data.setBatchId(rs.getLong("batch_id"));
         data.setUnitId(rs.getLong("unit_id"));

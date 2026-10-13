@@ -193,8 +193,11 @@ const StatsDashboardPage: React.FC = () => {
     label: String(d.date || ''),
     day: String(d.date || '').slice(0, 2),
   })), [daily]);
-  const chartH = narrow ? 210 : 280;
-  const pieH = narrow ? 180 : 230;
+  const dayCount = chartDays.length;
+  const chartH = narrow ? 188 : 228;
+  const pieH = narrow ? 168 : 200;
+  const barMax = dayCount > 28 ? 7 : dayCount > 20 ? 9 : dayCount > 14 ? 12 : 16;
+  const xTickInterval = dayCount > 24 ? 2 : dayCount > 16 ? 1 : 0;
 
   const printBill = async (billNo: string) => {
     try {
@@ -242,57 +245,99 @@ const StatsDashboardPage: React.FC = () => {
         <>
           <div className="st-kpis">
             <div className="st-kpi sales">
-              <div className="st-kpi-l">Total Sales</div>
-              <div className="st-kpi-v">₹ {n(data.sales)}</div>
-              <div className="st-kpi-t">{trend(data.salesPct, data.lastSales)}</div>
-              {Number(data.exchPoint) > 0 && <div className="st-kpi-t">Includes ₹ {n(data.exchPoint)} exchange point</div>}
+              <span className="st-kpi-art st-kpi-art-chart" aria-hidden />
+              <i className="st-kpi-deco fas fa-chart-line" aria-hidden />
+              <div className="st-kpi-body">
+                <div className="st-kpi-l">Total Sales</div>
+                <div className="st-kpi-v">₹ {n(data.sales)}</div>
+                <div className="st-kpi-t">{trend(data.salesPct, data.lastSales)}</div>
+                {Number(data.exchPoint) > 0 && <div className="st-kpi-t">Includes ₹ {n(data.exchPoint)} exchange point</div>}
+              </div>
             </div>
-            <div className="st-kpi purchase"><div className="st-kpi-l">Total Purchase</div><div className="st-kpi-v">₹ {n(data.purchase)}</div><div className="st-kpi-t">{trend(data.purchasePct, data.lastPurchase)}</div></div>
-            <div className="st-kpi expense"><div className="st-kpi-l">Total Expense</div><div className="st-kpi-v">₹ {n(data.expense)}</div><div className="st-kpi-t">{trend(data.expensePct, data.lastExpense)}</div></div>
-            <div className={`st-kpi profit ${data.netProfit >= 0 ? 'up' : 'down'}`}><div className="st-kpi-l">Net Profit</div><div className="st-kpi-v">₹ {n(data.netProfit)}</div><div className="st-kpi-t">{trend(data.profitPct, data.lastProfit)}</div></div>
+            <div className="st-kpi purchase">
+              <span className="st-kpi-art st-kpi-art-bars" aria-hidden />
+              <i className="st-kpi-deco fas fa-truck-ramp-box" aria-hidden />
+              <div className="st-kpi-body">
+                <div className="st-kpi-l">Total Purchase</div>
+                <div className="st-kpi-v">₹ {n(data.purchase)}</div>
+                <div className="st-kpi-t">{trend(data.purchasePct, data.lastPurchase)}</div>
+              </div>
+            </div>
+            <div className="st-kpi expense">
+              <span className="st-kpi-art st-kpi-art-wave" aria-hidden />
+              <i className="st-kpi-deco fas fa-wallet" aria-hidden />
+              <div className="st-kpi-body">
+                <div className="st-kpi-l">Total Expense</div>
+                <div className="st-kpi-v">₹ {n(data.expense)}</div>
+                <div className="st-kpi-t">{trend(data.expensePct, data.lastExpense)}</div>
+              </div>
+            </div>
+            <div className={`st-kpi profit ${data.netProfit >= 0 ? 'up' : 'down'}`}>
+              <span className="st-kpi-art st-kpi-art-trend" aria-hidden />
+              <i className={`st-kpi-deco fas ${data.netProfit >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}`} aria-hidden />
+              <div className="st-kpi-body">
+                <div className="st-kpi-l">Net Profit</div>
+                <div className="st-kpi-v">₹ {n(data.netProfit)}</div>
+                <div className="st-kpi-t">{trend(data.profitPct, data.lastProfit)}</div>
+              </div>
+            </div>
           </div>
           <div className="mst-note st-today">Today: ₹ {n(data.todaySales)} across {data.todayBills} bills · Showing {data.label}</div>
           <div className="st-charts">
-            <div className="mst-card">
+            <div className="mst-card st-chart-card">
               <div className="mst-card-h">Daily Sales vs Purchase — {data.label}</div>
               <div className="mst-card-b st-chart-body">
                 {chartDays.length === 0 ? (
                   <div className="mst-empty">No days in this month.</div>
                 ) : (
-                  <>
-                    <div className="mst-note" style={{ marginBottom: 8 }}>Every day of the month</div>
-                    <div className="st-chart-desk">
-                      <div className="st-chart-scroll">
-                        <div style={{ minWidth: Math.max(chartDays.length, 2) * (narrow ? 72 : 56), height: chartH }}>
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartDays} margin={{ top: 8, right: 8, left: 0, bottom: 4 }} barGap={6} barCategoryGap="28%">
-                              <defs>
-                                <linearGradient id="salesBar" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="0%" stopColor="#60a5fa" />
-                                  <stop offset="100%" stopColor={SALES} />
-                                </linearGradient>
-                                <linearGradient id="purchaseBar" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="0%" stopColor="#fdba74" />
-                                  <stop offset="100%" stopColor={PURCHASE} />
-                                </linearGradient>
-                              </defs>
-                              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                              <XAxis dataKey="day" tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} interval={0} />
-                              <YAxis tickFormatter={compact} tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={40} />
-                              <Tooltip content={<ChartTip />} cursor={{ fill: 'rgba(15, 23, 42, 0.05)' }} />
-                              <Legend wrapperStyle={{ fontSize: 12 }} />
-                              <Bar dataKey="sales" name="Sales" fill="url(#salesBar)" radius={[6, 6, 0, 0]} maxBarSize={36} />
-                              <Bar dataKey="purchase" name="Purchase" fill="url(#purchaseBar)" radius={[6, 6, 0, 0]} maxBarSize={36} />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </div>
-                    </div>
-                  </>
+                  <div className="st-chart-fit" style={{ height: chartH }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={chartDays}
+                        margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
+                        barGap={1}
+                        barCategoryGap={dayCount > 24 ? '6%' : dayCount > 16 ? '10%' : '16%'}
+                      >
+                        <defs>
+                          <linearGradient id="salesBar" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#60a5fa" />
+                            <stop offset="100%" stopColor={SALES} />
+                          </linearGradient>
+                          <linearGradient id="purchaseBar" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#fdba74" />
+                            <stop offset="100%" stopColor={PURCHASE} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                        <XAxis
+                          dataKey="day"
+                          tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
+                          axisLine={false}
+                          tickLine={false}
+                          interval={xTickInterval}
+                        />
+                        <YAxis
+                          tickFormatter={compact}
+                          tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
+                          axisLine={false}
+                          tickLine={false}
+                          width={34}
+                        />
+                        <Tooltip content={<ChartTip />} cursor={{ fill: 'rgba(15, 23, 42, 0.05)' }} />
+                        <Legend
+                          verticalAlign="bottom"
+                          height={22}
+                          wrapperStyle={{ fontSize: 11, paddingTop: 2 }}
+                        />
+                        <Bar dataKey="sales" name="Sales" fill="url(#salesBar)" radius={[4, 4, 0, 0]} maxBarSize={barMax} />
+                        <Bar dataKey="purchase" name="Purchase" fill="url(#purchaseBar)" radius={[4, 4, 0, 0]} maxBarSize={barMax} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 )}
               </div>
             </div>
-            <div className="mst-card">
+            <div className="mst-card st-chart-card">
               <div className="mst-card-h">Month Mix — {data.label}</div>
               <div className="mst-card-b st-chart-body st-pie-wrap">
                 {pieTotal <= 0 ? (

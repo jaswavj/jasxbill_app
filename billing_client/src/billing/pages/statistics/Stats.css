@@ -27,8 +27,8 @@
 .st-kpis {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .st-kpis-6 {
@@ -36,17 +36,111 @@
 }
 
 .st-kpi {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   border-radius: 12px;
-  padding: 16px 18px;
+  padding: 12px 14px;
   color: #fff;
-  min-height: 110px;
+  min-height: 96px;
+  box-shadow:
+    0 4px 16px rgba(15, 23, 42, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
-.st-kpi.sales { background: linear-gradient(135deg, #1e40af, #3b82f6); }
-.st-kpi.purchase { background: linear-gradient(135deg, #c2410c, #f97316); }
-.st-kpi.expense { background: linear-gradient(135deg, #6d28d9, #a78bfa); }
-.st-kpi.profit.up { background: linear-gradient(135deg, #065f46, #10b981); }
-.st-kpi.profit.down { background: linear-gradient(135deg, #991b1b, #ef4444); }
+.st-kpi::before {
+  content: '';
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  right: -36px;
+  top: -36px;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.st-kpi::after {
+  content: '';
+  position: absolute;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  right: 8px;
+  bottom: -28px;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.st-kpi-body {
+  position: relative;
+  z-index: 2;
+  max-width: calc(100% - 52px);
+}
+
+.st-kpi-deco {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-46%);
+  font-size: 2.85rem;
+  line-height: 1;
+  opacity: 0.28;
+  z-index: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.12));
+}
+
+.st-kpi-art {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.2;
+  background-repeat: no-repeat;
+  background-position: left bottom;
+}
+
+.st-kpi-art-chart {
+  width: 58%;
+  height: 52%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 140 56' fill='none'%3E%3Cpath d='M8 44V28h14v16H8zm26-10V18h14v26H34zm26-8V8h14v36H60zm26 4V22h14v22H86z' fill='%23fff'/%3E%3Cpath d='M8 48h124' stroke='%23fff' stroke-opacity='.35' stroke-width='2'/%3E%3C/svg%3E");
+  background-size: 100% auto;
+}
+
+.st-kpi-art-bars {
+  width: 50%;
+  height: 48%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 52' fill='%23fff'%3E%3Crect x='6' y='22' width='18' height='26' rx='3' opacity='.85'/%3E%3Crect x='34' y='12' width='18' height='36' rx='3'/%3E%3Crect x='62' y='18' width='18' height='30' rx='3' opacity='.9'/%3E%3C/svg%3E");
+  background-size: 100% auto;
+}
+
+.st-kpi-art-wave {
+  width: 62%;
+  height: 44%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 48' fill='none'%3E%3Cpath d='M0 32c20-12 40-12 60 0s40 12 60 0 40-12 60 0v16H0V32z' fill='%23fff' opacity='.9'/%3E%3Cpath d='M0 40c16-8 32-8 48 0s32 8 48 0 32-8 48 0v8H0v-8z' fill='%23fff' opacity='.45'/%3E%3C/svg%3E");
+  background-size: 100% auto;
+}
+
+.st-kpi-art-trend {
+  width: 54%;
+  height: 50%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 140 56' fill='none'%3E%3Cpath d='M8 40 36 28l28 8 32-24 28 12' stroke='%23fff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='36' cy='28' r='4' fill='%23fff'/%3E%3Ccircle cx='64' cy='36' r='4' fill='%23fff'/%3E%3Ccircle cx='96' cy='12' r='4' fill='%23fff'/%3E%3C/svg%3E");
+  background-size: 100% auto;
+}
+
+.st-kpi.profit.down .st-kpi-art-trend {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 140 56' fill='none'%3E%3Cpath d='M8 16 36 28l28-8 32 24 28-12' stroke='%23fff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.st-kpi.sales { background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 48%, #3b82f6 100%); }
+.st-kpi.purchase { background: linear-gradient(135deg, #9a3412 0%, #ea580c 50%, #fb923c 100%); }
+.st-kpi.expense { background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 52%, #a78bfa 100%); }
+.st-kpi.profit.up { background: linear-gradient(135deg, #064e3b 0%, #059669 50%, #34d399 100%); }
+.st-kpi.profit.down { background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 50%, #f87171 100%); }
 
 .st-kpi-l {
   font-size: 11px;
@@ -200,31 +294,28 @@
 
 .st-charts {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.9fr);
-  gap: 12px;
+  grid-template-columns: minmax(0, 1.65fr) minmax(240px, 0.85fr);
+  gap: 10px;
   align-items: stretch;
 }
 
 .st-today {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   word-spacing: 0.12em;
+  font-size: 12px;
+}
+
+.st-chart-card .mst-card-b {
+  padding: 8px 10px 10px;
 }
 
 .st-chart-body {
   min-height: 0;
 }
 
-.st-chart-desk {
-  display: block;
+.st-chart-fit {
   width: 100%;
   min-width: 0;
-}
-
-.st-chart-scroll {
-  width: 100%;
-  min-width: 0;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
 }
 
 .st-pie-wrap {
@@ -271,8 +362,8 @@
 .st-pie-legend {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 4px;
+  gap: 4px;
+  margin-top: 2px;
 }
 
 .st-pie-leg {
@@ -321,19 +412,18 @@
   .st-filter-row .mst-fg:nth-child(2) { width: 100%; }
   .st-filter-acts { width: 100%; flex-wrap: wrap; }
   .st-kpi { min-height: 88px; padding: 12px 12px; }
+  .st-kpi-deco { font-size: 2.25rem; right: 10px; }
   .st-kpi-v { font-size: 1.15rem; }
   .st-day { grid-template-columns: 64px 1fr; }
   .crd-stat { padding: 10px 8px; }
   .crd-stat-v { font-size: 1.15rem; }
 }
 
-@media (max-width: 768px) {
-  .st-chart-desk { display: block; }
-}
-
 @media (max-width: 640px) {
   .st-kpis { grid-template-columns: 1fr 1fr !important; gap: 8px; }
   .st-kpi { min-height: 0; padding: 10px 10px; }
+  .st-kpi-deco { font-size: 1.85rem; opacity: 0.22; }
+  .st-kpi-art { opacity: 0.14; }
   .st-kpi-l { font-size: 10px; }
   .st-kpi-v { font-size: 1.05rem; margin: 4px 0 4px; }
   .st-charts { gap: 10px; }

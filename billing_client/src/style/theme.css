@@ -179,11 +179,69 @@ html[data-theme="dark"] {
   --color-success: #3dd68c;
   --color-overlay: rgba(0, 0, 0, 0.65);
   --btn-primary: #5b9bd5;
-  --secondary-header-color: #2a3b4d;
+  --secondary-header-color: #e8eef4;
+  --primary-header-color: #5b9bd5;
+  --secondary-color: #e8eef4;
+  --primary-color: #1a3350;
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.35);
   --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.45);
   --color-on-brand: #ffffff;
   --color-logo-tile: #ffffff;
+
+  /* Legacy tokens used by tables, headers, and Bootstrap */
+  --bs-body-color: var(--color-text);
+  --bs-body-bg: var(--color-bg-page);
+  --bs-border-color: var(--color-border);
+  --table-header-bg: #1c2a38;
+  --table-header-text: var(--color-text);
+  --page-header-bg: var(--color-bg-surface);
+  --page-header-text: var(--color-text);
+  --page-header-badge-bg: var(--color-bg-elevated);
+  --page-header-badge-text: var(--color-text);
+  --bg-white: var(--color-bg-surface);
+  --bg-main: var(--color-bg-page);
+  --border-color: var(--color-border);
+  --text-primary: var(--color-text);
+  --text-dark: var(--color-text);
+  --text-muted: var(--color-text-muted);
+  --transparent-bg: #2a3b4d;
+  --tooltip-bg: #1c2a38;
+  --tooltip-text: var(--color-text);
+}
+
+html[data-theme="dark"] body {
+  color: var(--color-text);
+  background-color: var(--color-bg-page);
+}
+
+html[data-theme="dark"] .form-control,
+html[data-theme="dark"] .form-select {
+  color: var(--color-text) !important;
+  background-color: var(--color-bg-elevated) !important;
+  border-color: var(--color-border) !important;
+}
+
+html[data-theme="dark"] .form-control:focus,
+html[data-theme="dark"] .form-select:focus {
+  color: var(--color-text) !important;
+  border-color: var(--color-primary) !important;
+}
+
+html[data-theme="dark"] table tbody td,
+html[data-theme="dark"] table tbody th {
+  color: var(--color-text);
+}
+
+html[data-theme="dark"] .mst-page,
+html[data-theme="dark"] .mst-title,
+html[data-theme="dark"] .mst-card-h,
+html[data-theme="dark"] .mst-card,
+html[data-theme="dark"] .table {
+  color: var(--color-text);
+}
+
+html[data-theme="dark"] .text-muted {
+  color: var(--color-text-muted) !important;
 }
 
 table thead {

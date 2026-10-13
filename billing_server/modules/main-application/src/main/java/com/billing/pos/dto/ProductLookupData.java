@@ -9,7 +9,12 @@ public class ProductLookupData {
     private String name;
     private Long categoryId;
     private Double mrp;
+    /** Computed Rs discount for one unit at MRP (legacy display). */
     private Double discount;
+    /** Master disc_type: 0 none, 1 Rs, 2 %. */
+    private Integer discType;
+    /** Raw master discount value from prod_batch.discount. */
+    private Double productDiscount;
     private Long batchId;
     private Long unitId;
     private String unitName;

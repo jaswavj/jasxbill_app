@@ -23,6 +23,8 @@ type Product = {
   commission: number;
   stock: number;
   categoryId?: number;
+  discType?: number;
+  productDiscount?: number;
 };
 
 type MenuCategory = { id: number; name: string };
@@ -469,6 +471,19 @@ const BillingPage: React.FC = () => {
     });
   }, [menuProducts, menuCategory, menuQuery]);
 
+  const lineDiscountFromMaster = (subtotal: number, p: Product) => {
+    const rawType = Number(p.discType) || 0;
+    if (rawType !== 1 && rawType !== 2) {
+      return { discType: 1 as const, discInput: 0, discount: 0 };
+    }
+    const discType = rawType as 1 | 2;
+    let discInput = Number(p.productDiscount) || 0;
+    if (discType === 2) discInput = Math.min(100, discInput);
+    else discInput = Math.min(subtotal, discInput);
+    const discount = discType === 2 ? (subtotal * discInput) / 100 : discInput;
+    return { discType, discInput, discount };
+  };
+
   const buildLine = (p: Product, qtyInput: number, unitPrice: number, unitChoice: string, key: number): Line => {
     const unitName = (p.unitName || '').toLowerCase();
     let actualQty = qtyInput;
@@ -479,7 +494,9 @@ const BillingPage: React.FC = () => {
     } else if (unitName === 'kg' || unitName === 'kgs') {
       displayUnit = 'KG';
     }
+    const subtotal = actualQty * unitPrice;
     const commission = isCommission ? p.commission * actualQty : 0;
+    const disc = lineDiscountFromMaster(subtotal, p);
     return {
       key,
       productId: p.id,
@@ -489,12 +506,12 @@ const BillingPage: React.FC = () => {
       displayQty: qtyInput,
       displayUnit,
       price: unitPrice,
-      discType: 1,
-      discInput: 0,
-      discount: 0,
+      discType: disc.discType,
+      discInput: disc.discInput,
+      discount: disc.discount,
       commissionPer: p.commission,
       commission,
-      total: actualQty * unitPrice - commission,
+      total: subtotal - disc.discount - commission,
       batchId: p.batchId,
     };
   };

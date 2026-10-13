@@ -16,8 +16,11 @@ public class ApiExceptionHandler {
         ResponseDO response = new ResponseDO();
         response.setSuccess(false);
         response.setData(Map.of("error", ex.getMessage() != null ? ex.getMessage() : "Request failed"));
-        HttpStatus status = "Invalid Credentials".equals(ex.getMessage())
+        String msg = ex.getMessage() != null ? ex.getMessage() : "";
+        HttpStatus status = "Invalid Credentials".equals(msg)
                 ? HttpStatus.UNAUTHORIZED
+                : msg.startsWith("Your license is expired")
+                ? HttpStatus.FORBIDDEN
                 : HttpStatus.BAD_REQUEST;
         return ResponseEntity.status(status).body(response);
     }
