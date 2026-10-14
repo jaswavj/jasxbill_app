@@ -45,6 +45,22 @@ const emptyForm = {
   blockIt: false,
 };
 
+const defaultBrandId = (brands: Named[]) => {
+  const other = brands.find((b) => /other/i.test(b.name));
+  return other ? String(other.id) : '';
+};
+
+const defaultUnitId = (units: Unit[]) => {
+  const nos = units.find((u) => /^(nos|pcs)$/i.test(u.name));
+  return nos ? String(nos.id) : '';
+};
+
+const blankForm = (lookups: { brands: Named[]; units: Unit[] }) => ({
+  ...emptyForm,
+  brandId: defaultBrandId(lookups.brands),
+  unitId: defaultUnitId(lookups.units),
+});
+
 const ProductPage: React.FC = () => {
   const heads = useHeadings();
   const [lookups, setLookups] = useState<{ categories: Named[]; brands: Named[]; units: Unit[] }>({
@@ -63,19 +79,18 @@ const ProductPage: React.FC = () => {
   const loadLookups = async () => {
     try {
       const lookup = masterData<any>(await masterApi.lookups());
-      setLookups({
+      const nextLookups = {
         categories: lookup.categories || [],
         brands: lookup.brands || [],
         units: lookup.units || [],
-      });
+      };
+      setLookups(nextLookups);
       setForm((prev) => {
         if (prev.id) return prev;
-        const others = (lookup.brands || []).find((b: Named) => /other/i.test(b.name));
-        const nos = (lookup.units || []).find((u: Unit) => /^(nos|pcs)$/i.test(u.name));
         return {
           ...prev,
-          brandId: others ? String(others.id) : prev.brandId,
-          unitId: nos ? String(nos.id) : prev.unitId,
+          brandId: prev.brandId || defaultBrandId(nextLookups.brands),
+          unitId: prev.unitId || defaultUnitId(nextLookups.units),
         };
       });
     } catch (err) {
@@ -177,7 +192,7 @@ const ProductPage: React.FC = () => {
         });
         toast.success(form.id ? `${heads.head3} updated` : `${heads.head3} added`);
       }
-      setForm(emptyForm);
+      setForm(blankForm(lookups));
       setOtherOpen(false);
       await refreshProducts();
     } catch (err) {
@@ -314,7 +329,7 @@ const ProductPage: React.FC = () => {
                 {form.id ? 'Update' : `Add ${heads.head3}`}
               </button>
               {form.id > 0 && (
-                <button className="mst-btn mst-btn-outline" type="button" onClick={() => { setForm(emptyForm); setOtherOpen(false); }}>
+                <button className="mst-btn mst-btn-outline" type="button" onClick={() => { setForm(blankForm(lookups)); setOtherOpen(false); }}>
                   Cancel
                 </button>
               )}
