@@ -4,6 +4,7 @@ import com.billing.core.response.ResponseDO;
 import com.billing.data.AppUser;
 import com.billing.domain.User;
 import com.billing.dtos.UserDTO;
+import com.billing.core.license.LicenseValidator;
 import com.billing.model.AuthModel;
 import com.billing.security.PlatformSecurityContext;
 import com.billing.service.AuthService;
@@ -23,6 +24,7 @@ public class UserController {
 
     private final AuthService authService;
     private final PlatformSecurityContext platformSecurityContext;
+    private final LicenseValidator licenseValidator;
 
     @PostMapping("/login")
     public ResponseDO doLogin(@RequestBody AuthModel authModel) {
@@ -31,6 +33,9 @@ public class UserController {
 
     @GetMapping("/getLoginUser")
     public ResponseDO getLoginUser(@RequestHeader(HttpHeaders.AUTHORIZATION) String token) {
+        if (this.licenseValidator != null) {
+            this.licenseValidator.validateForLogin();
+        }
         AppUser appUser = this.platformSecurityContext.authenticateUser();
         User user = appUser.getUser();
         UserDTO userDTO = user.to();
