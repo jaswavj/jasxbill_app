@@ -163,6 +163,27 @@
   width: min(540px, 100%);
 }
 
+.pos-modal.pos-purchase-confirm-modal {
+  width: min(780px, 100%);
+}
+
+.pos-purchase-bill-row {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.9fr);
+}
+
+.pos-save-chip-hl {
+  background: color-mix(in srgb, #f59e0b 22%, var(--color-bg-surface));
+  border-color: color-mix(in srgb, #f59e0b 45%, transparent);
+}
+
+.pos-save-chip-hl span {
+  color: #9a3412;
+}
+
+.pos-save-chip-hl strong {
+  color: #7c2d12;
+}
+
 .pos-purchase-add-modal .pos-save-body .pos-inp-lg {
   height: 36px;
 }
@@ -848,7 +869,8 @@
     margin-top: 0;
   }
 
-  .pos-save-customer-row {
+  .pos-save-customer-row,
+  .pos-purchase-bill-row {
     grid-template-columns: 1fr;
     gap: 10px;
   }

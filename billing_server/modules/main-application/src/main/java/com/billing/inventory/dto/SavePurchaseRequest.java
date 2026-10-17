@@ -13,6 +13,8 @@ public class SavePurchaseRequest {
     private Integer bankId;
     private Double grandTotal;
     private Double paidAmount;
+    private Double cashPaid;
+    private Double bankPaid;
     private Double extraDisc;
     private Double balanceAmount;
     private List<PurchaseLineRequest> products;

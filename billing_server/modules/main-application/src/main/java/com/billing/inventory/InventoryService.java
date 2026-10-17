@@ -200,7 +200,7 @@ public class InventoryService {
             throw new RuntimeException("Please select payment mode.");
         }
         if (request.getPayType() != 1 && (request.getBankId() == null || request.getBankId() == 0)) {
-            throw new RuntimeException("Please select payment mode (Bank details).");
+            throw new RuntimeException("Please select bank type.");
         }
         if (request.getProducts() == null || request.getProducts().isEmpty()) {
             throw new RuntimeException("Please add at least one product with quantity.");
@@ -209,13 +209,24 @@ public class InventoryService {
         if (grandTotal <= 0) {
             throw new RuntimeException("Grand total must be greater than zero.");
         }
-        double paid = nz(request.getPaidAmount());
+        int payMode = request.getPayType() == null ? 1 : request.getPayType();
+        if (payMode != 1 && payMode != 2 && payMode != 3) {
+            throw new RuntimeException("Please select payment mode.");
+        }
+        double cashPaid = request.getCashPaid() != null ? nz(request.getCashPaid()) : (payMode == 1 ? nz(request.getPaidAmount()) : 0);
+        double bankPaid = request.getBankPaid() != null ? nz(request.getBankPaid()) : (payMode == 2 ? nz(request.getPaidAmount()) : 0);
+        if (payMode == 1) {
+            bankPaid = 0;
+        } else if (payMode == 2) {
+            cashPaid = 0;
+        }
+        double paid = cashPaid + bankPaid;
         double extra = nz(request.getExtraDisc());
-        double balance = nz(request.getBalanceAmount());
-        if (paid < 0 || balance < 0) {
+        double balance = Math.max(0, grandTotal - paid);
+        if (cashPaid < 0 || bankPaid < 0) {
             throw new RuntimeException("Paid / balance cannot be negative.");
         }
-        int bankId = request.getBankId() == null ? 0 : request.getBankId();
+        int bankId = payMode == 1 ? 0 : (request.getBankId() == null ? 0 : request.getBankId());
 
         Integer next = jdbcTemplate.queryForObject("SELECT COUNT(id)+1 FROM prod_purchase", Integer.class);
         final String purchaseNo = "GRN-" + (next == null ? 1 : next);
@@ -236,7 +247,7 @@ public class InventoryService {
             ps.setDouble(7, extra);
             ps.setDouble(8, grandTotal);
             ps.setLong(9, uid);
-            ps.setInt(10, request.getPayType());
+            ps.setInt(10, payMode);
             ps.setInt(11, bankId);
             ps.setLong(12, request.getSupplierId());
             ps.setNull(13, java.sql.Types.VARCHAR);
@@ -255,7 +266,7 @@ public class InventoryService {
         Long supPayId = jdbcTemplate.queryForObject("SELECT MAX(id) FROM prod_purchase_supplier_payment WHERE prid = ?", Long.class, purchaseId);
         jdbcTemplate.update(
                 "INSERT INTO prod_purchase_supplier_payment_details(supPayId, payable, paid, balance, pay_type, pay_mode, uid, notes, date, time) VALUES(?,?,?,?,?,?,?,?,NOW(),NOW())",
-                supPayId, grandTotal, paid, balance, request.getPayType(), bankId, uid, "Payment for Purchase Bill"
+                supPayId, grandTotal, paid, balance, payMode, bankId, uid, "Payment for Purchase Bill"
         );
 
         for (PurchaseLineRequest line : request.getProducts()) {
@@ -313,13 +324,10 @@ public class InventoryService {
             }
         }
 
-        int paymentMode = request.getPayType() == 1 ? 1 : 2;
-        double cashPaid = request.getPayType() == 1 ? paid : 0;
-        double bankPaid = request.getPayType() != 1 ? paid : 0;
         jdbcTemplate.update(
                 "INSERT INTO prod_ledger (bill_type, bill_id, customer_id, supplier_id, payment_mode, bill_amount, cash_paid, bank_paid, payment_type, uid, date_time) " +
                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
-                5, purchaseId, null, request.getSupplierId(), paymentMode, grandTotal, cashPaid, bankPaid, request.getPayType(), uid
+                5, purchaseId, null, request.getSupplierId(), payMode, grandTotal, cashPaid, bankPaid, payMode == 1 ? 0 : bankId, uid
         );
         if (balance > 0) {
             addDueToSupplier(request.getSupplierId(), balance);

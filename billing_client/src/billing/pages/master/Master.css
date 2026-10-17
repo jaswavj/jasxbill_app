@@ -307,6 +307,18 @@
   font-variant-numeric: tabular-nums;
 }
 
+.mst-table tfoot .pur-sum-row td {
+  font-weight: 700;
+  border-top: 2px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+.mst-table tfoot .pur-sum-hl {
+  background: color-mix(in srgb, #f59e0b 28%, var(--color-bg-surface));
+  color: #7c2d12;
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
 .mst-icon-btn {
   border: none;
   background: transparent;
