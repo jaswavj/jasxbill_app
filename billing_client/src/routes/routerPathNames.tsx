@@ -31,6 +31,7 @@ export const routerPathNames = {
   },
   stockReports: {
     currentStock: '/app/stock-reports/current-stock',
+    zeroStock: '/app/stock-reports/zero-stock',
     productTransaction: '/app/stock-reports/product-transaction',
     stockAdjustment: '/app/stock-reports/stock-adjustment',
   },

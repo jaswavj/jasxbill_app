@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,25 +37,49 @@ public class StockReportService {
                         + "FROM prod_batch a JOIN prod_product b ON b.id = a.product_id "
                         + "LEFT JOIN prod_units u ON u.id = b.unit_id LEFT JOIN prod_category c ON c.id = b.category_id "
                         + "WHERE a.stock > 0 AND IFNULL(b.is_active, 0) = 1 ORDER BY CAST(SUBSTRING(b.code, 2) AS UNSIGNED)",
-                (rs, i) -> {
-                    double stock = rs.getDouble("stock");
-                    double cost = rs.getDouble("cost");
-                    double mrp = rs.getDouble("mrp");
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("productName", rs.getString("name"));
-                    row.put("code", rs.getString("code"));
-                    row.put("stock", stock);
-                    row.put("cost", cost);
-                    row.put("mrp", mrp);
-                    row.put("discount", rs.getDouble("discount_rs"));
-                    row.put("totalCost", stock * cost);
-                    row.put("totalMrp", stock * mrp);
-                    row.put("unit", nz(rs.getString("convertion_unit")).isEmpty() ? nz(rs.getString("unit_name")) : rs.getString("convertion_unit"));
-                    row.put("categoryId", rs.getLong("category_id"));
-                    row.put("categoryName", nz(rs.getString("category_name")));
-                    return row;
-                }
+                (rs, i) -> stockRow(rs)
         );
+    }
+
+    public List<Map<String, Object>> zeroStock() {
+        return jdbcTemplate.query(
+                "SELECT b.name, b.code, IFNULL(SUM(a.stock), 0) AS stock, "
+                        + "IFNULL(lb.cost, 0) AS cost, IFNULL(lb.mrp, 0) AS mrp, "
+                        + "CASE WHEN lb.disc_type = 1 THEN lb.discount "
+                        + "WHEN lb.disc_type = 2 THEN ROUND(lb.mrp * (lb.discount/100), 2) ELSE 0 END AS discount_rs, "
+                        + "IFNULL(u.name,'') AS unit_name, b.category_id, IFNULL(c.name,'') AS category_name, "
+                        + "IFNULL(u.convertion_unit,'') AS convertion_unit "
+                        + "FROM prod_product b "
+                        + "LEFT JOIN prod_batch a ON a.product_id = b.id "
+                        + "LEFT JOIN prod_batch lb ON lb.id = (SELECT MAX(id) FROM prod_batch WHERE product_id = b.id) "
+                        + "LEFT JOIN prod_units u ON u.id = b.unit_id "
+                        + "LEFT JOIN prod_category c ON c.id = b.category_id "
+                        + "WHERE IFNULL(b.is_active, 0) = 1 "
+                        + "GROUP BY b.id, b.name, b.code, lb.cost, lb.mrp, lb.disc_type, lb.discount, "
+                        + "u.name, b.category_id, c.name, u.convertion_unit "
+                        + "HAVING IFNULL(SUM(a.stock), 0) <= 0 "
+                        + "ORDER BY CAST(SUBSTRING(b.code, 2) AS UNSIGNED)",
+                (rs, i) -> stockRow(rs)
+        );
+    }
+
+    private Map<String, Object> stockRow(ResultSet rs) throws SQLException {
+        double stock = rs.getDouble("stock");
+        double cost = rs.getDouble("cost");
+        double mrp = rs.getDouble("mrp");
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("productName", rs.getString("name"));
+        row.put("code", rs.getString("code"));
+        row.put("stock", stock);
+        row.put("cost", cost);
+        row.put("mrp", mrp);
+        row.put("discount", rs.getDouble("discount_rs"));
+        row.put("totalCost", stock * cost);
+        row.put("totalMrp", stock * mrp);
+        row.put("unit", nz(rs.getString("convertion_unit")).isEmpty() ? nz(rs.getString("unit_name")) : rs.getString("convertion_unit"));
+        row.put("categoryId", rs.getLong("category_id"));
+        row.put("categoryName", nz(rs.getString("category_name")));
+        return row;
     }
 
     public List<Map<String, Object>> transactions(String from, String to, Long productId) {

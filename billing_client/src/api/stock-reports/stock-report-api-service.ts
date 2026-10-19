@@ -8,6 +8,8 @@ export class StockReportApiService {
   products = () => this.http.get('/v1/stock-reports/products');
   currentStock = (page = 0, size = 25) =>
     this.http.get(`/v1/stock-reports/current-stock?${pageQuery(page, size)}`);
+  zeroStock = (page = 0, size = 25) =>
+    this.http.get(`/v1/stock-reports/zero-stock?${pageQuery(page, size)}`);
   transactions = (from: string, to: string, productId?: number, page = 0, size = 25) => {
     const params = new URLSearchParams({ from, to, ...Object.fromEntries(new URLSearchParams(pageQuery(page, size))) });
     if (productId) params.set('productId', String(productId));

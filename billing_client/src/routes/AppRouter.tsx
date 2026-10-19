@@ -59,6 +59,7 @@ const CategorySalesPage = lazy(() => import('../billing/pages/statistics/Categor
 const ProductAnalysisPage = lazy(() => import('../billing/pages/statistics/ProductAnalysisPage'));
 const BalanceSummaryPage = lazy(() => import('../billing/pages/statistics/BalanceSummaryPage'));
 const CurrentStockPage = lazy(() => import('../billing/pages/stock-reports/CurrentStockPage'));
+const ZeroStockPage = lazy(() => import('../billing/pages/stock-reports/ZeroStockPage'));
 const ProductTransactionPage = lazy(() => import('../billing/pages/stock-reports/ProductTransactionPage'));
 const StockAdjustmentReportPage = lazy(() => import('../billing/pages/stock-reports/StockAdjustmentReportPage'));
 const SalesReportPage = lazy(() => import('../billing/pages/account-reports/SalesReportPage'));
@@ -123,6 +124,7 @@ const AppRouter = () => {
               <Route path="statistics/product-analysis" element={<ProductAnalysisPage />} />
               <Route path="statistics/balance-summary" element={<BalanceSummaryPage />} />
               <Route path="stock-reports/current-stock" element={<CurrentStockPage />} />
+              <Route path="stock-reports/zero-stock" element={<ZeroStockPage />} />
               <Route path="stock-reports/product-transaction" element={<ProductTransactionPage />} />
               <Route path="stock-reports/stock-adjustment" element={<StockAdjustmentReportPage />} />
               <Route path="account-reports/sales" element={<SalesReportPage />} />

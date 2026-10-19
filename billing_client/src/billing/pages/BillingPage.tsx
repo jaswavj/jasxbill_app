@@ -98,12 +98,14 @@ const BillingPage: React.FC = () => {
 
   const [search, setSearch] = useState('');
   const [nameHits, setNameHits] = useState<string[]>([]);
+  const [hitIndex, setHitIndex] = useState(0);
   const [pending, setPending] = useState<Product | null>(null);
   const [qty, setQty] = useState('1');
   const [price, setPrice] = useState('');
   const [unitSel, setUnitSel] = useState('');
   const [stock, setStock] = useState<number | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const hitRef = useRef<HTMLButtonElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
   const custPhoneRef = useRef<HTMLInputElement>(null);
   const taxBillRef = useRef<HTMLInputElement>(null);
@@ -291,6 +293,10 @@ const BillingPage: React.FC = () => {
     custHitRef.current?.scrollIntoView({ block: 'nearest' });
   }, [custIndex, customerHits, custField]);
 
+  useEffect(() => {
+    hitRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [hitIndex, nameHits]);
+
   const clearCustSuggest = () => {
     custSearchSeq.current += 1;
     setCustomerHits([]);
@@ -407,6 +413,7 @@ const BillingPage: React.FC = () => {
       setUnitSel('');
     }
     setNameHits([]);
+    setHitIndex(0);
     focusQty();
   };
 
@@ -432,13 +439,36 @@ const BillingPage: React.FC = () => {
     setSearch(value);
     if (value.trim().length < 1) {
       setNameHits([]);
+      setHitIndex(0);
       return;
     }
     const res: any = await api.searchProducts(value.trim());
     setNameHits(res?.data || []);
+    setHitIndex(0);
+  };
+
+  const pickSearchHit = async (name: string) => {
+    if (!(await lookupByName(name))) toast.error(`Product not found: ${name}`);
   };
 
   const onSearchKey = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const open = nameHits.length > 0;
+    if (open && e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHitIndex((i) => Math.min(nameHits.length - 1, i + 1));
+      return;
+    }
+    if (open && e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHitIndex((i) => Math.max(0, i - 1));
+      return;
+    }
+    if (open && e.key === 'Escape') {
+      e.preventDefault();
+      setNameHits([]);
+      setHitIndex(0);
+      return;
+    }
     if (e.key !== 'Enter' && e.key !== 'Tab') return;
     e.preventDefault();
     const val = search.trim();
@@ -447,15 +477,20 @@ const BillingPage: React.FC = () => {
       focusQty();
       return;
     }
+    if (open) {
+      const name = nameHits[Math.min(hitIndex, nameHits.length - 1)] || nameHits[0];
+      if (name) {
+        await pickSearchHit(name);
+        return;
+      }
+    }
     const labeled = val.match(/^(.+?)\s+-\s+(.+)$/);
     if (labeled) {
       if (!(await lookupByCode(labeled[1].trim()))) toast.error(`Product not found: ${labeled[1].trim()}`);
       return;
     }
     if (await lookupByCode(val)) return;
-    const name = nameHits[0] || val;
-    if (await lookupByName(name)) return;
-    if (name !== val && (await lookupByName(val))) return;
+    if (await lookupByName(val)) return;
     toast.error(`Product not found: ${val}`);
   };
 
@@ -1345,9 +1380,21 @@ const BillingPage: React.FC = () => {
                   </span>
                 )}
                 {nameHits.length > 0 && (
-                  <div className="pos-suggest">
-                    {nameHits.map((name) => (
-                      <button key={name} type="button" onClick={() => lookupByName(name)}>{name}</button>
+                  <div className="pos-suggest" role="listbox">
+                    {nameHits.map((name, i) => (
+                      <button
+                        key={name}
+                        type="button"
+                        role="option"
+                        aria-selected={i === hitIndex}
+                        ref={i === hitIndex ? hitRef : undefined}
+                        className={i === hitIndex ? 'on' : ''}
+                        onMouseEnter={() => setHitIndex(i)}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => pickSearchHit(name)}
+                      >
+                        {name}
+                      </button>
                     ))}
                   </div>
                 )}

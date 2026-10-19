@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { adminApi, adminError, adminPage } from '../../../api/admin/admin-api-service';
 import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import '../master/Master.css';
+import '../BillingPage.css';
 
 type Row = {
   id: number;
@@ -32,6 +33,7 @@ const EditLogPage: React.FC = () => {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
+  const [open, setOpen] = useState<Row | null>(null);
 
   const search = async (p = 0) => {
     try {
@@ -75,7 +77,11 @@ const EditLogPage: React.FC = () => {
               <tbody>
                 {rows.length === 0 && <tr><td colSpan={7} className="mst-empty">No edits or cancellations in this period.</td></tr>}
                 {rows.map((row, i) => (
-                  <tr key={row.id || `${row.billNo}-${i}`}>
+                  <tr
+                    key={row.id || `${row.billNo}-${i}`}
+                    className="mst-click-row"
+                    onClick={() => setOpen(row)}
+                  >
                     <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                     <td>{row.billNo}</td>
                     <td>{actionLabel(row.action)}</td>
@@ -89,6 +95,27 @@ const EditLogPage: React.FC = () => {
             </table>
           </div>
           <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={(p) => search(p)} />
+        </div>
+      )}
+      {open && (
+        <div className="pos-modal-back" onClick={() => setOpen(null)}>
+          <div className="pos-modal" style={{ width: 'min(560px, 100%)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="pos-modal-head">
+              <h4>Edit log — {open.billNo || '-'}</h4>
+              <button className="pos-btn pos-btn-outline" type="button" onClick={() => setOpen(null)}>Close</button>
+            </div>
+            <div className="mst-form one-col">
+              <div className="mst-fg"><label>Bill No</label><input className="mst-inp" readOnly value={open.billNo || '-'} /></div>
+              <div className="mst-fg"><label>Action</label><input className="mst-inp" readOnly value={actionLabel(open.action)} /></div>
+              <div className="mst-fg"><label>Date</label><input className="mst-inp" readOnly value={open.date || '-'} /></div>
+              <div className="mst-fg"><label>Time</label><input className="mst-inp" readOnly value={open.time || '-'} /></div>
+              <div className="mst-fg"><label>User</label><input className="mst-inp" readOnly value={open.userName || '-'} /></div>
+              <div className="mst-fg">
+                <label>Details</label>
+                <textarea className="mst-area" readOnly rows={6} value={open.details || '-'} style={{ whiteSpace: 'pre-wrap' }} />
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

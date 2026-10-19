@@ -104,7 +104,6 @@ export const billingMenuConfig: MenuItemConfig[] = [
       { id: 'stats-dashboard', name: 'Dashboard', url: routerPathNames.statistics.dashboard, icon: 'fas fa-chart-line' },
       { id: 'category-sales', name: 'Category Sales Statistics', url: routerPathNames.statistics.categorySales, icon: 'fas fa-layer-group' },
       { id: 'product-analysis', name: 'Product Analysis Report', url: routerPathNames.statistics.productAnalysis, icon: 'fas fa-cube' },
-      { id: 'balance-summary', name: 'Balance Summary', url: routerPathNames.statistics.balanceSummary, icon: 'fas fa-scale-balanced' },
     ],
   },
   {
@@ -114,6 +113,7 @@ export const billingMenuConfig: MenuItemConfig[] = [
     moduleId: MENU_MODULE.stockReports,
     submenus: [
       { id: 'current-stock', name: 'Current Stock', url: routerPathNames.stockReports.currentStock, icon: 'fas fa-boxes' },
+      { id: 'zero-stock', name: 'Zero Stock Report', url: routerPathNames.stockReports.zeroStock, icon: 'fas fa-box-open' },
       { id: 'product-transaction', name: 'Product Transaction', url: routerPathNames.stockReports.productTransaction, icon: 'fas fa-exchange-alt' },
       { id: 'stock-adjustment', name: 'Stock Adjustment', url: routerPathNames.stockReports.stockAdjustment, icon: 'fas fa-sliders-h' },
     ],
@@ -135,7 +135,6 @@ export const billingMenuConfig: MenuItemConfig[] = [
           { id: 'sales-by-item', name: 'Sales by Product', url: routerPathNames.accountReports.salesByItem, icon: 'fas fa-cube' },
           { id: 'sales-by-customer', name: 'Sales by Customer', url: routerPathNames.accountReports.salesByCustomer, icon: 'fas fa-user' },
           { id: 'sales-by-attender', name: 'Sales by Attender', url: routerPathNames.accountReports.salesByAttender, icon: 'fas fa-user-tie' },
-          { id: 'day-account', name: 'Day Account', url: routerPathNames.accountReports.dayAccount, icon: 'fas fa-calendar-day' },
           { id: 'day-book', name: 'Day Book', url: routerPathNames.accountReports.dayBook, icon: 'fas fa-book' },
           { id: 'commission', name: 'Commission Report', url: routerPathNames.accountReports.commission, icon: 'fas fa-percent' },
         ],
@@ -186,7 +185,7 @@ export const billingMenuConfig: MenuItemConfig[] = [
     moduleId: MENU_MODULE.admin,
     submenus: [
       { id: 'company-details', name: 'Company Details', url: routerPathNames.admin.companyDetails, icon: 'fas fa-building' },
-      { id: 'monthly-bills', name: 'Monthly Bills', url: routerPathNames.admin.monthlyBills, icon: 'fas fa-file-invoice' },
+      { id: 'monthly-bills', name: 'Edit Bill', url: routerPathNames.admin.monthlyBills, icon: 'fas fa-file-invoice' },
       { id: 'edit-log', name: 'Edit Log', url: routerPathNames.admin.editLog, icon: 'fas fa-history' },
       { id: 'exchange', name: 'Exchange', url: routerPathNames.admin.exchange, icon: 'fas fa-sync' },
       { id: 'exchange-report', name: 'Exchange & Return Report', url: routerPathNames.admin.exchangeReport, icon: 'fas fa-undo' },
