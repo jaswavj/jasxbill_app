@@ -46,13 +46,18 @@ public class AdminService {
 
     @PostConstruct
     public void init() {
-        ensureEditLogTable();
-        ensureBillingTypeColumn();
-        addIntColumn("barcode_per_row", 1);
-        addIntColumn("barcode_width_mm", 50);
-        addIntColumn("barcode_height_mm", 30);
-        addIntColumn("thermal_print_type", 1);
-        addIntColumn("thermal_txt_file", 0);
+        try {
+            ensureEditLogTable();
+            ensureBillingTypeColumn();
+            addIntColumn("barcode_per_row", 1);
+            addIntColumn("barcode_width_mm", 50);
+            addIntColumn("barcode_height_mm", 30);
+            addIntColumn("thermal_print_type", 1);
+            addIntColumn("thermal_txt_file", 0);
+        } catch (Exception ex) {
+            org.slf4j.LoggerFactory.getLogger(AdminService.class)
+                    .warn("Could not apply admin schema checks: {}", ex.getMessage());
+        }
     }
 
     public CompanyDetailsData company() {

@@ -51,6 +51,16 @@
         </dependency>
         <dependency>
             <groupId>com.billing</groupId>
+            <artifactId>core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.billing</groupId>
+            <artifactId>users</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.billing</groupId>
             <artifactId>auth</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -67,10 +77,18 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
+                    <layers>
+                        <enabled>false</enabled>
+                    </layers>
+                    <excludeDevtools>true</excludeDevtools>
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
+                        </exclude>
+                        <exclude>
+                            <groupId>org.springframework.boot</groupId>
+                            <artifactId>spring-boot-devtools</artifactId>
                         </exclude>
                     </excludes>
                 </configuration>
