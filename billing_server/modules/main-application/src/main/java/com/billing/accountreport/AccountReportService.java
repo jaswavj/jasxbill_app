@@ -121,9 +121,26 @@ public class AccountReportService {
             return row;
         }, dueArgs.toArray());
 
+        double saleCash = r2(sumKey(bills, "cash"));
+        double saleBank = r2(sumKey(bills, "bank"));
+        double saleTotal = r2(sumKey(bills, "payable"));
+        double dueCash = r2(sumKey(dues, "cashPaid"));
+        double dueBank = r2(sumKey(dues, "bankPaid"));
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("saleTotal", saleTotal);
+        summary.put("saleCash", saleCash);
+        summary.put("saleBank", saleBank);
+        summary.put("dueTotal", r2(dueCash + dueBank));
+        summary.put("dueCash", dueCash);
+        summary.put("dueBank", dueBank);
+        summary.put("totalCash", r2(saleCash + dueCash));
+        summary.put("totalBank", r2(saleBank + dueBank));
+        summary.put("grandTotal", r2(saleCash + saleBank + dueCash + dueBank));
+
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("bills", bills);
         data.put("dues", dues);
+        data.put("summary", summary);
         return data;
     }
 

@@ -1,4 +1,5 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { adminApi, adminData, adminError } from '../../../api/admin/admin-api-service';
 import { billingApi } from '../../../api/billing/billing-api-service';
@@ -13,6 +14,7 @@ type Hit = { id: number; name: string; phone?: string; mrp?: number; code?: stri
 const missingCustomer = (id?: number | null) => !id || Number(id) <= 1;
 
 const ExchangePage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [billNo, setBillNo] = useState('');
   const [bill, setBill] = useState<Bill | null>(null);
   const [needCustomer, setNeedCustomer] = useState(false);
@@ -21,11 +23,18 @@ const ExchangePage: React.FC = () => {
   const [custPhone, setCustPhone] = useState('');
   const [custId, setCustId] = useState(0);
   const [custHits, setCustHits] = useState<Hit[]>([]);
+  const [exItem, setExItem] = useState<Item | null>(null);
+  const [prodTerm, setProdTerm] = useState('');
+  const [prodHits, setProdHits] = useState<Hit[]>([]);
+  const [newProd, setNewProd] = useState<Hit | null>(null);
+  const [newPrice, setNewPrice] = useState('');
   const [retItem, setRetItem] = useState<Item | null>(null);
   const [retQty, setRetQty] = useState('');
   const [busy, setBusy] = useState(false);
   const timer = useRef<number | null>(null);
+  const prodTimer = useRef<number | null>(null);
   const assignLock = useRef(false);
+  const loadedQuery = useRef('');
 
   const load = async (no = billNo) => {
     if (!no.trim()) return;
@@ -51,6 +60,14 @@ const ExchangePage: React.FC = () => {
       setBusy(false);
     }
   };
+
+  useEffect(() => {
+    const q = (searchParams.get('billNo') || '').trim();
+    if (!q || loadedQuery.current === q) return;
+    loadedQuery.current = q;
+    setBillNo(q);
+    void load(q);
+  }, [searchParams]);
 
   const searchCust = (query?: string, phone?: string) => {
     if ((!query || query.length < 1) && (!phone || phone.length < 2)) {
@@ -98,6 +115,67 @@ const ExchangePage: React.FC = () => {
       toast.error(adminError(err, 'Could not assign customer'));
     } finally {
       assignLock.current = false;
+      setBusy(false);
+    }
+  };
+
+  const searchProd = (term: string) => {
+    setProdTerm(term);
+    setNewProd(null);
+    if (term.trim().length < 1) {
+      setProdHits([]);
+      return;
+    }
+    if (prodTimer.current) window.clearTimeout(prodTimer.current);
+    prodTimer.current = window.setTimeout(async () => {
+      try {
+        const hits = adminData<Hit[]>(await adminApi.exchangeProducts(term.trim()));
+        setProdHits(hits || []);
+      } catch {
+        setProdHits([]);
+      }
+    }, 250);
+  };
+
+  const pickProd = (p: Hit) => {
+    setNewProd(p);
+    setProdTerm(p.name);
+    setNewPrice(p.mrp != null ? String(p.mrp) : '');
+    setProdHits([]);
+  };
+
+  const openExchange = (item: Item) => {
+    setExItem(item);
+    setProdTerm('');
+    setProdHits([]);
+    setNewProd(null);
+    setNewPrice('');
+  };
+
+  const saveExchange = async () => {
+    if (!bill || !exItem || !newProd) {
+      toast.warning('Select the new product');
+      return;
+    }
+    const price = parseFloat(newPrice);
+    if (!(price > 0)) {
+      toast.warning('Enter a valid price');
+      return;
+    }
+    setBusy(true);
+    try {
+      const msg = adminData<string>(await adminApi.saveExchange({
+        billNo: bill.billNo,
+        detailId: exItem.detailId,
+        newProdId: newProd.id,
+        newPrice: price,
+      }));
+      toast.success(msg);
+      setExItem(null);
+      await load(bill.billNo);
+    } catch (err) {
+      toast.error(adminError(err, 'Exchange failed'));
+    } finally {
       setBusy(false);
     }
   };
@@ -196,6 +274,7 @@ const ExchangePage: React.FC = () => {
                   placeholder="Phone number"
                   onChange={(e) => {
                     setCustPhone(e.target.value);
+                    setCustId(0);
                     searchCust(undefined, e.target.value);
                   }}
                 />
@@ -239,9 +318,14 @@ const ExchangePage: React.FC = () => {
                       </td>
                       <td>
                         {exchanged || returned ? '—' : (
-                          <button className="mst-icon-btn" type="button" disabled={needCustomer} onClick={() => { setRetItem(item); setRetQty(String(item.qty)); }}>
-                            <i className="fas fa-undo" /> Return
-                          </button>
+                          <div className="mst-actions" style={{ gap: 6, margin: 0 }}>
+                            <button className="mst-btn mst-btn-primary" type="button" disabled={needCustomer} onClick={() => openExchange(item)}>
+                              <i className="fas fa-sync" /> Exchange
+                            </button>
+                            <button className="mst-btn mst-btn-outline" type="button" disabled={needCustomer} onClick={() => { setRetItem(item); setRetQty(String(item.qty)); }}>
+                              <i className="fas fa-undo" /> Return
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -249,6 +333,61 @@ const ExchangePage: React.FC = () => {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {exItem && bill && (
+        <div className="crd-modal" onClick={() => !busy && setExItem(null)}>
+          <div className="crd-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="crd-modal-h">
+              <h4 style={{ margin: 0 }}>Exchange Item — Bill #{bill.billNo}</h4>
+              <button className="mst-btn mst-btn-outline" type="button" disabled={busy} onClick={() => setExItem(null)}>Close</button>
+            </div>
+            <div className="crd-modal-body" style={{ padding: 16 }}>
+              <div className="mst-note" style={{ marginBottom: 12 }}>
+                Old: <strong>{exItem.productName}</strong> | Qty {exItem.qty} | Price ₹{exItem.price} | Total ₹{exItem.total}
+              </div>
+              <div className="pos-fg" style={{ marginBottom: 12 }}>
+                <span className="pos-lbl">New product <span className="req">*</span></span>
+                <input
+                  className="pos-inp pos-inp-lg"
+                  value={prodTerm}
+                  placeholder="Type name or code"
+                  onChange={(e) => searchProd(e.target.value)}
+                />
+                {prodHits.length > 0 && (
+                  <div className="pos-suggest">
+                    {prodHits.map((p) => (
+                      <button key={p.id} type="button" onClick={() => pickProd(p)}>
+                        {p.name}{p.code ? ` · ${p.code}` : ''}{p.mrp != null ? ` · ₹${p.mrp}` : ''}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {newProd && <div className="pos-banner" style={{ marginBottom: 12 }}>Selected: {newProd.name}</div>}
+              <div className="mst-fg" style={{ marginBottom: 12 }}>
+                <label>New price</label>
+                <input className="mst-inp" type="number" min="0.01" step="0.01" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} />
+              </div>
+              {newProd && parseFloat(newPrice) > 0 && (
+                <div className="mst-note" style={{ marginBottom: 12 }}>
+                  New total ₹{(parseFloat(newPrice) * exItem.qty).toFixed(2)}
+                  {parseFloat(newPrice) * exItem.qty < exItem.total
+                    ? ` — difference credited as exchange points`
+                    : parseFloat(newPrice) * exItem.qty > exItem.total
+                      ? ` — bill amount will increase`
+                      : ' — same amount'}
+                </div>
+              )}
+              <div className="mst-actions">
+                <button className="mst-btn mst-btn-outline" type="button" disabled={busy} onClick={() => setExItem(null)}>Cancel</button>
+                <button className="mst-btn mst-btn-primary" type="button" disabled={busy || !newProd} onClick={saveExchange}>
+                  Confirm Exchange
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

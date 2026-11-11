@@ -20,8 +20,10 @@ import { statsApi, statsData, statsError } from '../../../api/statistics/statist
 import ListPagination from '../../components/ListPagination';
 import { normalizePage } from '../../components/ListPagination';
 import { openBillWhatsApp } from '../../components/whatsAppBill';
+import CollectionCards from '../../components/CollectionCards';
 import { useBillDetail } from '../account-reports/BillDetailModal';
 import '../admin/MonthlyBills.css';
+import '../credit/Credit.css';
 import '../master/Master.css';
 import './Stats.css';
 
@@ -41,6 +43,11 @@ type BillCard = {
   returned?: boolean;
   exchPoint?: number;
 };
+type TodayCollection = {
+  saleTotal: number; saleCash: number; saleBank: number;
+  dueTotal: number; dueCash: number; dueBank: number;
+  totalCash: number; totalBank: number; grandTotal: number;
+};
 type Dash = {
   year: number; month: number; label: string;
   sales: number; lastSales: number; salesPct: number;
@@ -48,6 +55,7 @@ type Dash = {
   expense: number; lastExpense: number; expensePct: number;
   profit: number; lastProfit: number; profitPct: number;
   netProfit: number; todaySales: number; todayBills: number; daily: Day[];
+  todayCollection?: TodayCollection;
   exchPoint?: number;
   bills?: BillCard[];
 };
@@ -380,6 +388,9 @@ const StatsDashboardPage: React.FC = () => {
               </div>
             </div>
           </div>
+          {data.todayCollection && (
+            <CollectionCards title="Today's Collection" data={data.todayCollection} />
+          )}
           <div className="mst-card" style={{ marginTop: 12 }}>
             <div className="mst-card-h">Bills — {data.label} ({billsTotal})</div>
             <div className="mst-card-b">

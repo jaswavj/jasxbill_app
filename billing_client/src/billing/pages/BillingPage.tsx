@@ -79,6 +79,7 @@ const BillingPage: React.FC = () => {
   const [discPer, setDiscPer] = useState(login.discPer || 100);
   const [canBillWithoutStock, setCanBillWithoutStock] = useState(false);
   const [billingType, setBillingType] = useState(1);
+  const [priceEditable, setPriceEditable] = useState(true);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [menuProducts, setMenuProducts] = useState<Product[]>([]);
   const [menuCategory, setMenuCategory] = useState(0);
@@ -164,6 +165,7 @@ const BillingPage: React.FC = () => {
         setDiscPer(res.data.discPer ?? 100);
         setCanBillWithoutStock(!!res.data.canBillWithoutStock);
         setBillingType(res.data.billingType === 2 ? 2 : 1);
+        setPriceEditable(res.data.isEditablePrice !== 0);
       }
     }).catch(() => undefined);
   }, []);
@@ -1012,6 +1014,13 @@ const BillingPage: React.FC = () => {
     }
   };
 
+  const openExchange = () => {
+    const no = (savedNo || editBillNo || '').trim();
+    navigate(no
+      ? `${routerPathNames.admin.exchange}?billNo=${encodeURIComponent(no)}`
+      : routerPathNames.admin.exchange);
+  };
+
   const openDupe = async () => {
     const res: any = await api.recentBills();
     setRecent(res?.data || []);
@@ -1338,6 +1347,7 @@ const BillingPage: React.FC = () => {
                 )}
                 <button className="pos-btn pos-btn-outline" type="button" onClick={() => setKeysOpen(true)}>KEYS</button>
                 <button className="pos-btn pos-btn-outline" type="button" onClick={openDupe}>DUP</button>
+                <button className="pos-btn pos-btn-outline" type="button" onClick={openExchange}>EXCHANGE</button>
                 <button className="pos-btn pos-btn-outline" type="button" onClick={newBill}>REFRESH</button>
               </div>
               {(showSavedBill || editBillNo || showHoldBadge) && (
@@ -1413,7 +1423,13 @@ const BillingPage: React.FC = () => {
               </div>
               <div className="pos-fg" style={{ flex: 0.9, minWidth: 88 }}>
                 <span className="pos-lbl">Price</span>
-                <input className="pos-inp" value={price} onChange={(e) => setPrice(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addProduct()} />
+                <input
+                  className={`pos-inp${!priceEditable ? ' pos-inp-muted' : ''}`}
+                  value={price}
+                  readOnly={!priceEditable}
+                  onChange={(e) => { if (priceEditable) setPrice(e.target.value); }}
+                  onKeyDown={(e) => e.key === 'Enter' && addProduct()}
+                />
               </div>
               <button className="pos-btn" type="button" onClick={addProduct}>ADD</button>
               {!editBillId && (
@@ -1448,9 +1464,13 @@ const BillingPage: React.FC = () => {
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <input
-                        className="pos-inp"
+                        className={`pos-inp${!priceEditable ? ' pos-inp-muted' : ''}`}
                         value={line.price}
-                        onChange={(e) => updateLineQtyPrice(line.key, line.qty, parseFloat(e.target.value) || 0)}
+                        readOnly={!priceEditable}
+                        onChange={(e) => {
+                          if (!priceEditable) return;
+                          updateLineQtyPrice(line.key, line.qty, parseFloat(e.target.value) || 0);
+                        }}
                       />
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
@@ -1488,6 +1508,7 @@ const BillingPage: React.FC = () => {
                   <i className="fas fa-keyboard" /> KEYS
                 </button>
                 <button className="pos-btn pos-btn-outline" type="button" onClick={openDupe}>DUP</button>
+                <button className="pos-btn pos-btn-outline" type="button" onClick={openExchange}>EXCHANGE</button>
                 <button className="pos-btn pos-btn-outline" type="button" title="Alt+R" onClick={newBill}>REFRESH</button>
                 <button className={`pos-btn ${showSavedBill ? 'pos-btn-saved' : 'pos-btn-navy'}`} type="button" title="Alt+S" onClick={openSave}>
                   {showSavedBill ? 'BILL SAVED' : editBillId ? 'UPDATE' : 'SAVE'}
@@ -1727,6 +1748,7 @@ const BillingPage: React.FC = () => {
                     {holding ? (isEditingHold ? 'Updating…' : 'Holding…') : (isEditingHold ? 'Update hold' : 'Hold')}
                   </button>
                 )}
+                <button className="pos-btn pos-btn-outline" type="button" onClick={openExchange}>Exchange</button>
                 <button className="pos-btn pos-btn-outline" type="button" title="Alt+P" onClick={() => printBill(savedNo || editBillNo || dupeNo)}>Print</button>
                 <button
                   className={`pos-btn pos-save-primary ${showSavedBill ? 'pos-btn-saved' : ''}`}

@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { accountApi, accountData, accountError } from '../../../api/account-reports/account-report-api-service';
 import { adminApi, adminData } from '../../../api/admin/admin-api-service';
+import CollectionCards from '../../components/CollectionCards';
 import ListPagination, { DEFAULT_PAGE_SIZE, normalizePage } from '../../components/ListPagination';
 import '../master/Master.css';
+import '../credit/Credit.css';
 import { n3, sum, today } from './reportHelpers';
 import { useBillDetail } from './BillDetailModal';
 import ReportActions from './ReportActions';
@@ -17,6 +19,23 @@ type Bill = {
 type Due = {
   customer: string; balance: number; cashPaid: number; bankPaid: number; mode: string;
   bankOption: string; date: string; time: string; biller: string;
+};
+type Summary = {
+  saleTotal: number; saleCash: number; saleBank: number;
+  dueTotal: number; dueCash: number; dueBank: number;
+  totalCash: number; totalBank: number; grandTotal: number;
+};
+
+const emptySummary: Summary = {
+  saleTotal: 0, saleCash: 0, saleBank: 0,
+  dueTotal: 0, dueCash: 0, dueBank: 0,
+  totalCash: 0, totalBank: 0, grandTotal: 0,
+};
+
+type SalesData = {
+  bills: Bill[] | ReturnType<typeof normalizePage<Bill>>;
+  dues: Due[] | ReturnType<typeof normalizePage<Due>>;
+  summary?: Summary;
 };
 
 const SalesReportPage: React.FC = () => {
@@ -33,7 +52,10 @@ const SalesReportPage: React.FC = () => {
   const [dueTotal, setDueTotal] = useState(0);
   const [billPage, setBillPage] = useState(0);
   const [duePage, setDuePage] = useState(0);
+  const [summary, setSummary] = useState<Summary>(emptySummary);
   const { openBill, billModal } = useBillDetail();
+
+  const readSummary = (data: { summary?: Summary }) => setSummary({ ...emptySummary, ...(data.summary || {}) });
 
   useEffect(() => {
     adminApi.users().then((res) => setUsers(adminData<User[]>(res) || [])).catch(() => undefined);
@@ -46,7 +68,7 @@ const SalesReportPage: React.FC = () => {
     const taxN = Number(taxBill);
     try {
       if (resetDues) {
-        const data = accountData<{ bills: Bill[] | ReturnType<typeof normalizePage<Bill>>; dues: Due[] | ReturnType<typeof normalizePage<Due>> }>(
+        const data = accountData<SalesData>(
           await accountApi.sales(from, to, modeN, typeN, userN, taxN, 0, DEFAULT_PAGE_SIZE),
         );
         const billsPg = normalizePage(data.bills);
@@ -57,14 +79,15 @@ const SalesReportPage: React.FC = () => {
         setDues(duesPg.items);
         setDueTotal(duesPg.total);
         setDuePage(0);
+        readSummary(data);
         return;
       }
       const [billRes, dueRes] = await Promise.all([
         accountApi.sales(from, to, modeN, typeN, userN, taxN, billP, DEFAULT_PAGE_SIZE),
         accountApi.sales(from, to, modeN, typeN, userN, taxN, dueP, DEFAULT_PAGE_SIZE),
       ]);
-      const billData = accountData<{ bills: Bill[] | ReturnType<typeof normalizePage<Bill>>; dues: Due[] | ReturnType<typeof normalizePage<Due>> }>(billRes);
-      const dueData = accountData<{ bills: Bill[] | ReturnType<typeof normalizePage<Bill>>; dues: Due[] | ReturnType<typeof normalizePage<Due>> }>(dueRes);
+      const billData = accountData<SalesData>(billRes);
+      const dueData = accountData<SalesData>(dueRes);
       const billsPg = normalizePage(billData.bills);
       const duesPg = normalizePage(dueData.dues);
       setBills(billsPg.items);
@@ -73,6 +96,7 @@ const SalesReportPage: React.FC = () => {
       setDues(duesPg.items);
       setDueTotal(duesPg.total);
       setDuePage(dueP);
+      readSummary(billData.summary ? billData : dueData);
     } catch (err) {
       toast.error(accountError(err, 'Could not load sales report'));
     }
@@ -162,6 +186,9 @@ const SalesReportPage: React.FC = () => {
       </div>
       {bills && (
         <>
+          <div style={{ marginBottom: 12 }}>
+            <CollectionCards data={summary} />
+          </div>
           <div className="mst-card" style={{ marginBottom: 12 }}>
             <div className="mst-card-h">Sales {from} — {to}</div>
             <div className="mst-table-wrap">

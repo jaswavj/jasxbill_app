@@ -18,6 +18,7 @@ const empty = {
   barcodePerRow: 1,
   barcodeWidthMm: 50,
   barcodeHeightMm: 30,
+  isEditablePrice: 1,
 };
 
 const CompanyDetailsPage: React.FC = () => {
@@ -37,6 +38,7 @@ const CompanyDetailsPage: React.FC = () => {
           barcodePerRow: Number(data.barcodePerRow) || 1,
           barcodeWidthMm: Number(data.barcodeWidthMm) || 50,
           barcodeHeightMm: Number(data.barcodeHeightMm) || 30,
+          isEditablePrice: data.isEditablePrice === 0 ? 0 : 1,
         });
       })
       .catch((err) => toast.error(adminError(err, 'Could not load company details')));
@@ -72,6 +74,7 @@ const CompanyDetailsPage: React.FC = () => {
         barcodePerRow: Number(form.barcodePerRow) || 1,
         barcodeWidthMm: Number(form.barcodeWidthMm) || 50,
         barcodeHeightMm: Number(form.barcodeHeightMm) || 30,
+        isEditablePrice: form.isEditablePrice === 1 ? 1 : 0,
       });
       toast.success('Company details saved');
     } catch (err) {
@@ -112,6 +115,15 @@ const CompanyDetailsPage: React.FC = () => {
             </select>
             <div className="mst-note">Type uses barcode/search. Select shows categories and products like a cafe menu.</div>
           </div>
+          <label className="mst-check">
+            <input
+              type="checkbox"
+              checked={form.isEditablePrice === 1}
+              onChange={(e) => setForm({ ...form, isEditablePrice: e.target.checked ? 1 : 0 })}
+            />
+            Editable price in billing
+          </label>
+          <div className="mst-note" style={{ marginTop: -6 }}>If checked, billing price can be changed. If unchecked, price is read-only.</div>
           <div className="mst-fg">
             <label>Print Format <span className="req">*</span></label>
             <select className="mst-sel" value={form.printType} onChange={(e) => setForm({ ...form, printType: Number(e.target.value), printerName: Number(e.target.value) === 2 ? '' : form.printerName })}>

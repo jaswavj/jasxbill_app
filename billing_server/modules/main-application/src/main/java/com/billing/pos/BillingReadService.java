@@ -95,8 +95,11 @@ public class BillingReadService {
         BillingOptionsData data = new BillingOptionsData();
         data.setDiscPer(discPer == null ? 100 : discPer);
         data.setCanBillWithoutStock(permCount != null && permCount > 0);
-        Integer billingType = adminService.company().getBillingType();
+        var company = adminService.company();
+        Integer billingType = company.getBillingType();
         data.setBillingType(billingType != null && billingType == 2 ? 2 : 1);
+        Integer editablePrice = company.getIsEditablePrice();
+        data.setIsEditablePrice(editablePrice != null && editablePrice == 1 ? 1 : 0);
         return data;
     }
 
@@ -535,7 +538,8 @@ public class BillingReadService {
             bill.setReturned(bill.getItems().stream().anyMatch(l -> l.getIsExchanged() != null && l.getIsExchanged() == 2));
         }
         attachPayments(bill);
-        bill.setDocTitle("Tax Invoice");
+        boolean taxBill = bill.getIsTaxBill() != null && bill.getIsTaxBill() == 1;
+        bill.setDocTitle(taxBill ? "Tax Invoice" : "");
         bill.setDocNoLabel("Invoice No.");
         return bill;
     }

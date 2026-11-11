@@ -28,6 +28,10 @@ public class LicenseGate {
         ).executeUpdate();
         entityManager.flush();
 
+        if (licenseDisabled()) {
+            return;
+        }
+
         @SuppressWarnings("unchecked")
         List<Object[]> rows = entityManager.createNativeQuery(
                 "SELECT `date`, `active` FROM heading ORDER BY id LIMIT 1"
@@ -44,6 +48,21 @@ public class LicenseGate {
         long usedDays = ChronoUnit.DAYS.between(start, LocalDate.now());
         if (usedDays >= allowedDays) {
             throw new RuntimeException(EXPIRED_MESSAGE);
+        }
+    }
+
+    private boolean licenseDisabled() {
+        try {
+            @SuppressWarnings("unchecked")
+            List<Object> flags = entityManager.createNativeQuery(
+                    "SELECT is_active FROM heading ORDER BY id LIMIT 1"
+            ).getResultList();
+            if (flags == null || flags.isEmpty() || flags.get(0) == null) {
+                return false;
+            }
+            return toInt(flags.get(0)) == 0;
+        } catch (Exception ignored) {
+            return false;
         }
     }
 

@@ -197,10 +197,38 @@ public class StatisticsService {
         data.put("netProfit", sales - purchase - expense);
         data.put("todaySales", todaySales);
         data.put("todayBills", todayBills);
+        data.put("todayCollection", todayCollection());
         data.put("exchPoint", exchPoint);
         data.put("daily", daily);
         data.put("bills", List.of());
         return data;
+    }
+
+    private Map<String, Object> todayCollection() {
+        double saleTotal = sum("SELECT COALESCE(SUM(IFNULL(payable,0)),0) FROM prod_bill WHERE is_cancelled = 0 AND DATE(date) = CURDATE()");
+        double saleCash = sum(
+                "SELECT COALESCE(SUM(IFNULL(p.cash,0)),0) FROM prod_bill a "
+                        + "JOIN prod_bill_payment p ON p.bill_id = a.id "
+                        + "WHERE a.is_cancelled = 0 AND DATE(a.date) = CURDATE()"
+        );
+        double saleBank = sum(
+                "SELECT COALESCE(SUM(IFNULL(p.bank,0)),0) FROM prod_bill a "
+                        + "JOIN prod_bill_payment p ON p.bill_id = a.id "
+                        + "WHERE a.is_cancelled = 0 AND DATE(a.date) = CURDATE()"
+        );
+        double dueCash = sum("SELECT COALESCE(SUM(IFNULL(cash_paid,0)),0) FROM prod_bill_due WHERE DATE(date) = CURDATE()");
+        double dueBank = sum("SELECT COALESCE(SUM(IFNULL(bank_paid,0)),0) FROM prod_bill_due WHERE DATE(date) = CURDATE()");
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("saleTotal", saleTotal);
+        row.put("saleCash", saleCash);
+        row.put("saleBank", saleBank);
+        row.put("dueTotal", dueCash + dueBank);
+        row.put("dueCash", dueCash);
+        row.put("dueBank", dueBank);
+        row.put("totalCash", saleCash + dueCash);
+        row.put("totalBank", saleBank + dueBank);
+        row.put("grandTotal", saleCash + saleBank + dueCash + dueBank);
+        return row;
     }
 
     public Map<String, Object> categorySales(String from, String to) {

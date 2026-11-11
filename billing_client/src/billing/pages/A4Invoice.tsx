@@ -57,13 +57,15 @@ export const A4Invoice: React.FC<{ bill: any }> = ({ bill }) => {
   }, [bill]);
 
   const emptyRows = Math.max(0, 10 - calc.items.length);
-  const title = bill.docTitle || 'Tax Invoice';
-  const noLabel = bill.docNoLabel || 'Invoice No.';
-  const isQuote = title === 'Quotation';
+  const isQuote = (bill.docTitle || '') === 'Quotation';
+  const isTax = isQuote || Number(bill?.isTaxBill ?? 1) === 1;
+  const title = isQuote ? 'Quotation' : isTax ? (bill.docTitle || 'Tax Invoice') : '';
+  const noLabel = bill.docNoLabel || (isQuote ? 'Quotation No.' : 'Invoice No.');
+  const colCount = isTax ? 9 : 5;
 
   return (
     <div className="a4-wrap">
-      <div className="a4-title">{title}</div>
+      {title ? <div className="a4-title">{title}</div> : null}
       <div className="a4-box">
         <div className="a4-header">
           <img src={logo} alt="" />
@@ -72,7 +74,7 @@ export const A4Invoice: React.FC<{ bill: any }> = ({ bill }) => {
             {(bill.companyAddress || '').split(/\r?\n/).filter(Boolean).map((line: string) => (
               <div key={line}>{line}</div>
             ))}
-            {hasVal(bill.companyGstin) && <div>GSTIN: {bill.companyGstin}</div>}
+            {isTax && hasVal(bill.companyGstin) && <div>GSTIN: {bill.companyGstin}</div>}
           </div>
         </div>
 
@@ -83,7 +85,7 @@ export const A4Invoice: React.FC<{ bill: any }> = ({ bill }) => {
               <div className="th-bold">{bill.customerName}</div>
               {hasVal(bill.customerPhone) && <div>Ph: {bill.customerPhone}</div>}
               {hasVal(bill.customerAddress) && <div>{bill.customerAddress}</div>}
-              {hasVal(bill.customerGstin) && <div>GSTIN: {bill.customerGstin}</div>}
+              {isTax && hasVal(bill.customerGstin) && <div>GSTIN: {bill.customerGstin}</div>}
             </div>
           </div>
           <div className="a4-half">
@@ -91,7 +93,7 @@ export const A4Invoice: React.FC<{ bill: any }> = ({ bill }) => {
             <div className="a4-body a4-right">
               <div>{noLabel}: {bill.billDisplay}</div>
               <div>Date: {bill.date}</div>
-              <div>Place of Supply: Tamil Nadu</div>
+              {isTax && <div>Place of Supply: Tamil Nadu</div>}
             </div>
           </div>
         </div>
@@ -99,15 +101,15 @@ export const A4Invoice: React.FC<{ bill: any }> = ({ bill }) => {
         <table className="a4-items">
           <thead>
             <tr>
-              <th style={{ width: '5%' }}>S.No</th>
-              <th style={{ width: '30%' }}>Item name</th>
-              <th style={{ width: '8%' }}>HSN/SAC</th>
-              <th style={{ width: '10%' }}>price/Unit</th>
-              <th style={{ width: '5%' }}>Qty</th>
-              <th style={{ width: '8%' }}>Taxable</th>
-              <th style={{ width: '10%' }}>CGST</th>
-              <th style={{ width: '10%' }}>SGST</th>
-              <th style={{ width: '14%' }}>Amount</th>
+              <th style={{ width: isTax ? '5%' : '8%' }}>S.No</th>
+              <th style={{ width: isTax ? '30%' : '46%' }}>Item name</th>
+              {isTax && <th style={{ width: '8%' }}>HSN/SAC</th>}
+              <th style={{ width: isTax ? '10%' : '16%' }}>price/Unit</th>
+              <th style={{ width: isTax ? '5%' : '12%' }}>Qty</th>
+              {isTax && <th style={{ width: '8%' }}>Taxable</th>}
+              {isTax && <th style={{ width: '10%' }}>CGST</th>}
+              {isTax && <th style={{ width: '10%' }}>SGST</th>}
+              <th style={{ width: isTax ? '14%' : '18%' }}>Amount</th>
             </tr>
           </thead>
           <tbody>
@@ -120,19 +122,19 @@ export const A4Invoice: React.FC<{ bill: any }> = ({ bill }) => {
                 <tr key={i}>
                   <td style={{ textAlign: 'center' }}>{i + 1}</td>
                   <td><b>{name}</b></td>
-                  <td style={{ textAlign: 'center' }}>{item.hsn || ''}</td>
+                  {isTax && <td style={{ textAlign: 'center' }}>{item.hsn || ''}</td>}
                   <td style={{ textAlign: 'right' }}>{money(item.price)}</td>
                   <td style={{ textAlign: 'center' }}>{item.qty}{item.unitName ? ` ${item.unitName}` : ''}</td>
-                  <td style={{ textAlign: 'right' }}>{money(taxAmt)}</td>
-                  <td style={{ textAlign: 'right' }}>{money(gstAmt / 2)}</td>
-                  <td style={{ textAlign: 'right' }}>{money(gstAmt / 2)}</td>
+                  {isTax && <td style={{ textAlign: 'right' }}>{money(taxAmt)}</td>}
+                  {isTax && <td style={{ textAlign: 'right' }}>{money(gstAmt / 2)}</td>}
+                  {isTax && <td style={{ textAlign: 'right' }}>{money(gstAmt / 2)}</td>}
                   <td style={{ textAlign: 'right' }}>{money(item.total)}</td>
                 </tr>
               );
             })}
             {Array.from({ length: emptyRows }).map((_, i) => (
               <tr className="a4-empty" key={`e${i}`}>
-                {Array.from({ length: 9 }).map((__, c) => (
+                {Array.from({ length: colCount }).map((__, c) => (
                   <td key={c}>&nbsp;</td>
                 ))}
               </tr>
@@ -140,17 +142,18 @@ export const A4Invoice: React.FC<{ bill: any }> = ({ bill }) => {
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={4} style={{ textAlign: 'right' }}>Total</td>
+              <td colSpan={isTax ? 4 : 3} style={{ textAlign: 'right' }}>Total</td>
               <td style={{ textAlign: 'center' }}>{calc.qty}</td>
-              <td style={{ textAlign: 'right' }}>{money(calc.taxable)}</td>
-              <td style={{ textAlign: 'right' }}>{money(calc.cgst)}</td>
-              <td style={{ textAlign: 'right' }}>{money(calc.sgst)}</td>
+              {isTax && <td style={{ textAlign: 'right' }}>{money(calc.taxable)}</td>}
+              {isTax && <td style={{ textAlign: 'right' }}>{money(calc.cgst)}</td>}
+              {isTax && <td style={{ textAlign: 'right' }}>{money(calc.sgst)}</td>}
               <td style={{ textAlign: 'right' }}>{money(calc.amount)}</td>
             </tr>
           </tfoot>
         </table>
 
-        <div className="a4-taxrow">
+        <div className={`a4-taxrow${isTax ? '' : ' no-tax'}`}>
+          {isTax && (
           <div className="a4-tax">
             <div className="a4-line">
               <span>Tax details</span>
@@ -160,6 +163,7 @@ export const A4Invoice: React.FC<{ bill: any }> = ({ bill }) => {
             <div className="a4-line"><span>SGST</span><span>₹ {money(calc.sgst)}</span></div>
             <div className="a4-line"><span>IGST</span><span>₹ 0.00</span></div>
           </div>
+          )}
           <div className="a4-amt">
             <div className="a4-h">Amounts</div>
             <div className="a4-line"><span>Sub Total</span><span>₹ {money(calc.subTotal)}</span></div>

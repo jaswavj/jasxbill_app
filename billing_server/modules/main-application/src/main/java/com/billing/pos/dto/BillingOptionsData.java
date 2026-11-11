@@ -8,4 +8,6 @@ public class BillingOptionsData {
     private Boolean canBillWithoutStock;
     /** 1 = type (barcode/search), 2 = select (cafe/restaurant menu) */
     private Integer billingType;
+    /** 1 = price can be changed on billing screen */
+    private Integer isEditablePrice;
 }

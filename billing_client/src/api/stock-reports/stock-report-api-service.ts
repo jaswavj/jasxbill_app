@@ -6,8 +6,11 @@ export class StockReportApiService {
   private http = new HttpClientWrapper();
 
   products = () => this.http.get('/v1/stock-reports/products');
-  currentStock = (page = 0, size = 25) =>
-    this.http.get(`/v1/stock-reports/current-stock?${pageQuery(page, size)}`);
+  currentStock = (page = 0, size = 25, categoryId?: number, q?: string) =>
+    this.http.get(`/v1/stock-reports/current-stock?${pageQuery(page, size, {
+      categoryId: categoryId && categoryId > 0 ? categoryId : undefined,
+      q,
+    })}`);
   zeroStock = (page = 0, size = 25) =>
     this.http.get(`/v1/stock-reports/zero-stock?${pageQuery(page, size)}`);
   transactions = (from: string, to: string, productId?: number, page = 0, size = 25) => {

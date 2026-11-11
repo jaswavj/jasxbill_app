@@ -12,6 +12,7 @@ public class CompanyDetailsData {
     private Integer thermalPrintType;
     private Integer thermalTxtFile;
     private Integer billingType;
+    private Integer isEditablePrice;
     private String printerName;
     private String bankDetails;
     private String barcodePrinter;

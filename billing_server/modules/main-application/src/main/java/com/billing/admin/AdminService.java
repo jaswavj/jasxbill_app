@@ -54,6 +54,7 @@ public class AdminService {
             addIntColumn("barcode_height_mm", 30);
             addIntColumn("thermal_print_type", 1);
             addIntColumn("thermal_txt_file", 0);
+            addIntColumn("is_editable_price", 1);
         } catch (Exception ex) {
             org.slf4j.LoggerFactory.getLogger(AdminService.class)
                     .warn("Could not apply admin schema checks: {}", ex.getMessage());
@@ -66,7 +67,8 @@ public class AdminService {
                         "IFNULL(thermal_txt_file, 0) AS thermal_txt_file, " +
                         "IFNULL(billing_type, 1) AS billing_type, printer_name, bank_details, barcode_printer, " +
                         "IFNULL(barcode_per_row, 1) AS barcode_per_row, IFNULL(barcode_width_mm, 50) AS barcode_width_mm, " +
-                        "IFNULL(barcode_height_mm, 30) AS barcode_height_mm FROM company_details LIMIT 1",
+                        "IFNULL(barcode_height_mm, 30) AS barcode_height_mm, " +
+                        "IFNULL(is_editable_price, 1) AS is_editable_price FROM company_details LIMIT 1",
                 (rs, i) -> {
                     CompanyDetailsData data = new CompanyDetailsData();
                     data.setId(rs.getLong("id"));
@@ -83,6 +85,7 @@ public class AdminService {
                     data.setBarcodePerRow(clamp(rs.getInt("barcode_per_row"), 1, 12, 1));
                     data.setBarcodeWidthMm(clamp(rs.getInt("barcode_width_mm"), 20, 210, 50));
                     data.setBarcodeHeightMm(clamp(rs.getInt("barcode_height_mm"), 15, 150, 30));
+                    data.setIsEditablePrice(normalizeFlag(rs.getInt("is_editable_price")));
                     return data;
                 }
         );
@@ -101,6 +104,7 @@ public class AdminService {
             empty.setBarcodePerRow(1);
             empty.setBarcodeWidthMm(50);
             empty.setBarcodeHeightMm(30);
+            empty.setIsEditablePrice(1);
             return empty;
         }
         return rows.get(0);
@@ -130,16 +134,17 @@ public class AdminService {
         int barcodePerRow = clamp(request.getBarcodePerRow(), 1, 12, 1);
         int barcodeWidthMm = clamp(request.getBarcodeWidthMm(), 20, 210, 50);
         int barcodeHeightMm = clamp(request.getBarcodeHeightMm(), 15, 150, 30);
+        int isEditablePrice = normalizeFlag(request.getIsEditablePrice());
         Long id = jdbcTemplate.query("SELECT id FROM company_details LIMIT 1", rs -> rs.next() ? rs.getLong(1) : null);
         if (id != null) {
             jdbcTemplate.update(
-                    "UPDATE company_details SET shop_name=?, address=?, gstin=?, print_type=?, thermal_print_type=?, thermal_txt_file=?, billing_type=?, printer_name=?, bank_details=?, barcode_printer=?, barcode_per_row=?, barcode_width_mm=?, barcode_height_mm=? WHERE id=?",
-                    shopName, address, gstin, printType, thermalPrintType, thermalTxtFile, billingType, printerName, bankDetails, barcodePrinter, barcodePerRow, barcodeWidthMm, barcodeHeightMm, id
+                    "UPDATE company_details SET shop_name=?, address=?, gstin=?, print_type=?, thermal_print_type=?, thermal_txt_file=?, billing_type=?, printer_name=?, bank_details=?, barcode_printer=?, barcode_per_row=?, barcode_width_mm=?, barcode_height_mm=?, is_editable_price=? WHERE id=?",
+                    shopName, address, gstin, printType, thermalPrintType, thermalTxtFile, billingType, printerName, bankDetails, barcodePrinter, barcodePerRow, barcodeWidthMm, barcodeHeightMm, isEditablePrice, id
             );
         } else {
             jdbcTemplate.update(
-                    "INSERT INTO company_details (shop_name, address, gstin, print_type, thermal_print_type, thermal_txt_file, billing_type, printer_name, bank_details, barcode_printer, barcode_per_row, barcode_width_mm, barcode_height_mm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    shopName, address, gstin, printType, thermalPrintType, thermalTxtFile, billingType, printerName, bankDetails, barcodePrinter, barcodePerRow, barcodeWidthMm, barcodeHeightMm
+                    "INSERT INTO company_details (shop_name, address, gstin, print_type, thermal_print_type, thermal_txt_file, billing_type, printer_name, bank_details, barcode_printer, barcode_per_row, barcode_width_mm, barcode_height_mm, is_editable_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    shopName, address, gstin, printType, thermalPrintType, thermalTxtFile, billingType, printerName, bankDetails, barcodePrinter, barcodePerRow, barcodeWidthMm, barcodeHeightMm, isEditablePrice
             );
         }
     }
@@ -475,13 +480,26 @@ public class AdminService {
         }
         String cusName = required(request.getCusName(), "Customer name is required.");
         String cusPhn = request.getCusPhn() == null ? "" : request.getCusPhn().trim();
+        if ("-".equals(cusPhn)) {
+            cusPhn = "";
+        }
         long customerId = request.getCustomerId() == null ? 0 : request.getCustomerId();
         boolean isNew = false;
+        if (customerId > 1) {
+            List<Integer> same = jdbcTemplate.query(
+                    "SELECT 1 FROM customers WHERE id = ? AND name = ? AND IFNULL(NULLIF(TRIM(phone_number), '-'), '') = ?",
+                    (rs, i) -> 1,
+                    customerId, cusName, cusPhn
+            );
+            if (same.isEmpty()) {
+                customerId = 0;
+            }
+        }
         if (customerId <= 1) {
             List<Long> existing = jdbcTemplate.query(
-                    "SELECT id FROM customers WHERE name = ? AND id > 1 LIMIT 1",
+                    "SELECT id FROM customers WHERE is_active = 1 AND id > 1 AND name = ? AND IFNULL(NULLIF(TRIM(phone_number), '-'), '') = ? ORDER BY id DESC LIMIT 1",
                     (rs, i) -> rs.getLong(1),
-                    cusName
+                    cusName, cusPhn
             );
             if (!existing.isEmpty()) {
                 customerId = existing.get(0);

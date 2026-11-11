@@ -278,10 +278,6 @@ const ProductPage: React.FC = () => {
                         <option key={u.id} value={u.id}>{u.name}</option>
                       ))}
                     </select>
-                  </div>
-                  <div className="mst-fg">
-                    <label>Stock</label>
-                    <input className="mst-inp" type="number" min="0" step="0.01" disabled={form.id > 0} value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
                     {convFactor > 0 && (
                       <span className="mst-note">Conversion: {convUnitName} ({convFactor} per {selectedUnit?.name})</span>
                     )}

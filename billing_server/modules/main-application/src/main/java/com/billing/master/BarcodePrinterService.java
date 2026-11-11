@@ -102,29 +102,25 @@ public class BarcodePrinterService {
     }
 
     private void writeLabel(ByteArrayOutputStream out, CompanyDetailsData company, BarcodePrintRequest.BarcodePrintLine item) {
-        String shop = nz(company.getShopName());
         String name = nz(item.getName());
         String code = nz(item.getCode());
         if (code.isBlank()) {
             throw new RuntimeException("Product code is required for barcode: " + (name.isBlank() ? "item" : name));
         }
-        if (!shop.isBlank()) {
-            write(out, BOLD_ON);
-            write(out, clip(shop, 24) + "\n");
-            write(out, BOLD_OFF);
-        }
-        if (!name.isBlank()) {
-            write(out, clip(name, 28) + "\n");
-        }
-        write(out, "MRP Rs " + DF.format(item.getMrp() == null ? 0 : item.getMrp()) + "\n");
+        String head = name.isBlank() ? code : (code.isBlank() ? name : clip(name, 18) + " - " + code);
+        write(out, BOLD_ON);
+        write(out, clip(head, 32) + "\n");
+        write(out, BOLD_OFF);
         writeBarcode(out, code);
-        write(out, code + "\n");
+        write(out, BOLD_ON);
+        write(out, "MRP Rs " + DF.format(item.getMrp() == null ? 0 : item.getMrp()) + "\n");
+        write(out, BOLD_OFF);
     }
 
     private void writeBarcode(ByteArrayOutputStream out, String code) {
-        write(out, new byte[]{0x1D, 0x68, 0x50});
+        write(out, new byte[]{0x1D, 0x68, 0x40});
         write(out, new byte[]{0x1D, 0x77, 0x02});
-        write(out, new byte[]{0x1D, 0x48, 0x02});
+        write(out, new byte[]{0x1D, 0x48, 0x00});
         byte[] data = ("{B" + code).getBytes(StandardCharsets.US_ASCII);
         if (data.length > 80) {
             throw new RuntimeException("Barcode value is too long: " + code);

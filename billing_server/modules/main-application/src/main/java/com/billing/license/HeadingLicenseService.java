@@ -23,12 +23,16 @@ public class HeadingLicenseService implements LicenseValidator {
     @PostConstruct
     public void init() {
         ensureStartingDateColumn();
+        ensureIsActiveColumn();
     }
 
     @Override
     public void validateForLogin() {
         Long id = headingId();
         if (id == null) {
+            return;
+        }
+        if (!licenseEnforced(id)) {
             return;
         }
         LocalDate start = ensureStartingDate(id);
@@ -66,6 +70,18 @@ public class HeadingLicenseService implements LicenseValidator {
         return start;
     }
 
+    private boolean licenseEnforced(long id) {
+        Object raw = columnValue(id, "is_active");
+        if (raw == null) {
+            return true;
+        }
+        if (raw instanceof Number n) {
+            return n.intValue() != 0;
+        }
+        String value = String.valueOf(raw).trim();
+        return !"0".equals(value);
+    }
+
     private int activeDays(long id) {
         Integer active = jdbcTemplate.queryForObject(
                 "SELECT active FROM heading WHERE id = ?",
@@ -87,6 +103,17 @@ public class HeadingLicenseService implements LicenseValidator {
             return null;
         }
         return rows.get(0).get(column);
+    }
+
+    private void ensureIsActiveColumn() {
+        if (hasColumn("is_active")) {
+            return;
+        }
+        try {
+            jdbcTemplate.execute("ALTER TABLE heading ADD COLUMN is_active TINYINT NOT NULL DEFAULT 1");
+        } catch (Exception ignored) {
+            // older shop DBs keep the existing license check until the column is added
+        }
     }
 
     private void ensureStartingDateColumn() {

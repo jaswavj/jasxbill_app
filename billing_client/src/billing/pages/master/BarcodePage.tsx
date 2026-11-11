@@ -94,8 +94,10 @@ const BarcodePage: React.FC = () => {
     for (let i = 0; i < payload.length; i += perRow) {
       grouped.push(payload.slice(i, i + perRow));
     }
-    const svgH = Math.max(8, Math.round(h * 0.4));
+    const svgH = Math.max(7, Math.round(h * 0.34));
     const svgW = Math.max(16, w - 4);
+    const titleMm = h >= 28 ? 3.6 : 3.3;
+    const mrpMm = h >= 28 ? 3.6 : 3.3;
     let idx = 0;
     const rowsHtml = grouped
       .map(
@@ -103,7 +105,8 @@ const BarcodePage: React.FC = () => {
           `<div class="row">${row
             .map((item) => {
               const n = idx++;
-              return `<div class="label"><div class="name">${esc(item.name)}</div><div class="mrp">MRP Rs ${item.mrp}</div><svg id="p-${n}"></svg><div class="code">${esc(item.code)}</div></div>`;
+              const head = [item.name, item.code].filter(Boolean).join(' - ');
+              return `<div class="label"><div class="head">${esc(head)}</div><svg id="p-${n}"></svg><div class="mrp">MRP Rs ${item.mrp}</div></div>`;
             })
             .join('')}</div>`
       )
@@ -132,7 +135,7 @@ const BarcodePage: React.FC = () => {
         .label {
           width: ${w}mm;
           height: ${h}mm;
-          padding: 1.2mm 1mm;
+          padding: 1mm 1mm 0.8mm;
           text-align: center;
           overflow: hidden;
           display: flex;
@@ -140,9 +143,21 @@ const BarcodePage: React.FC = () => {
           align-items: center;
           justify-content: center;
         }
-        .name { font-size: ${h >= 28 ? 9 : 8}px; font-weight: 700; line-height: 1.15; max-width: ${w - 2}mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .mrp { font-size: ${h >= 28 ? 9 : 8}px; margin: 0.3mm 0; }
-        .code { font-size: 8px; letter-spacing: 0.3px; }
+        .head {
+          font-size: ${titleMm}mm;
+          font-weight: 800;
+          line-height: 1.15;
+          max-width: ${w - 2}mm;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .mrp {
+          font-size: ${mrpMm}mm;
+          font-weight: 800;
+          margin-top: 0.5mm;
+          line-height: 1.1;
+        }
         svg { width: ${svgW}mm; height: ${svgH}mm; }
       </style></head><body>
       ${rowsHtml}

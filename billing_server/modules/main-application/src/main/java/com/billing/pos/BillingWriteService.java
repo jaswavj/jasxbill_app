@@ -247,31 +247,59 @@ public class BillingWriteService {
         if (name == null || name.isBlank() || "-".equals(name.trim())) {
             return customerId > 0 ? customerId : 0L;
         }
-        if (customerId > 0) {
+        name = name.trim();
+        String phone = normalizePhone(request.getCustomerPhn());
+        if (customerId > 0 && customerMatches(customerId, name, phone)) {
             return customerId;
         }
-        List<Long> existing = jdbcTemplate.query(
-                "SELECT id FROM customers WHERE name = ? LIMIT 1",
-                (rs, i) -> rs.getLong(1),
-                name.trim()
-        );
-        if (!existing.isEmpty()) {
-            return existing.get(0);
+        Long existingId = findCustomerId(name, phone);
+        if (existingId != null) {
+            return existingId;
         }
         KeyHolder keyHolder = new GeneratedKeyHolder();
+        String customerName = name;
         jdbcTemplate.update(con -> {
             PreparedStatement ps = con.prepareStatement(
                     "INSERT INTO customers(name, date, time, address, phone_number, gstin, is_gst, is_eligible_for_commission) VALUES (?, NOW(), NOW(), '', ?, '', 0, ?)",
                     Statement.RETURN_GENERATED_KEYS
             );
-            ps.setString(1, name.trim());
-            ps.setString(2, request.getCustomerPhn() == null ? "" : request.getCustomerPhn());
+            ps.setString(1, customerName);
+            ps.setString(2, phone);
             ps.setInt(3, request.getIsEligibleForCommission() == null ? 0 : request.getIsEligibleForCommission());
             return ps;
         }, keyHolder);
         long newId = requireGeneratedId(keyHolder);
         jdbcTemplate.update("INSERT INTO customer_account(customer_id, advance, balance) VALUES (?, 0.00, 0.00)", newId);
         return newId;
+    }
+
+    private boolean customerMatches(long customerId, String name, String phone) {
+        List<Integer> hit = jdbcTemplate.query(
+                "SELECT 1 FROM customers WHERE id = ? AND name = ? AND IFNULL(NULLIF(TRIM(phone_number), '-'), '') = ?",
+                (rs, i) -> 1,
+                customerId, name, phone
+        );
+        return !hit.isEmpty();
+    }
+
+    private Long findCustomerId(String name, String phone) {
+        List<Long> existing = jdbcTemplate.query(
+                "SELECT id FROM customers WHERE is_active = 1 AND name = ? AND IFNULL(NULLIF(TRIM(phone_number), '-'), '') = ? ORDER BY id DESC LIMIT 1",
+                (rs, i) -> rs.getLong(1),
+                name, phone
+        );
+        return existing.isEmpty() ? null : existing.get(0);
+    }
+
+    private static String normalizePhone(String phone) {
+        if (phone == null) {
+            return "";
+        }
+        String value = phone.trim();
+        if (value.isEmpty() || "-".equals(value)) {
+            return "";
+        }
+        return value;
     }
 
     private String nextBillNumber(int isTaxBill) {
