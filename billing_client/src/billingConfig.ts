@@ -8,7 +8,11 @@ const appHref = (path: string) => {
   return `${routerBaseUrl}/#${p}`;
 };
 
-const envApi = import.meta.env.VITE_API_BASE_URL;
+const desktopApi =
+  typeof window !== 'undefined' && window.jasxDesktop?.apiBaseUrl
+    ? String(window.jasxDesktop.apiBaseUrl).trim().replace(/\/$/, '')
+    : '';
+const envApi = desktopApi || import.meta.env.VITE_API_BASE_URL;
 const apiBaseName =
   envApi && envApi !== 'auto'
     ? envApi.replace(/\/$/, '')

@@ -10,7 +10,7 @@ const publicBase = (raw: string | undefined, fallback: string) => {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const base = publicBase(env.VITE_BASE, '/billing/');
+  const base = mode === 'electron' ? './' : publicBase(env.VITE_BASE, '/billing/');
 
   return {
     plugins: [react()],
