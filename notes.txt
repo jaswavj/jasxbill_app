@@ -3,3 +3,91 @@ billing_server\print-agent put this folder in client system
 install java 21
 run billing_server\print-agent\start-print-agent.bat and leave without close
 //////////////////////////////////////////////////////////////////////////////
+
+for cloud table alter pending
+
+
+ALTER TABLE user_modules ADD COLUMN is_group int NOT NULL DEFAULT 1;
+ALTER TABLE user_modules ADD COLUMN group_id int NOT NULL DEFAULT 0;
+ALTER TABLE user_modules ADD COLUMN is_active int NOT NULL DEFAULT 1;
+
+UPDATE user_modules SET is_active = 0 WHERE id = 11;
+
+UPDATE user_modules SET is_active = 0 WHERE id = 108;
+
+INSERT INTO user_modules (id, module_name, is_group, group_id, is_active) VALUES
+-- Master (group_id = 2)
+(101,'Category',0,2,1),
+(102,'Brands',0,2,1),
+(103,'Product',0,2,1),
+(104,'Config Product Material',0,2,1),
+(105,'Product Master',0,2,1),
+(106,'Stock Management',0,2,1),
+(107,'Customers',0,2,1),
+(108,'Cafe Tables',0,2,1),
+(109,'Units',0,2,1),
+(110,'Bar Code',0,2,1),
+
+-- Inventory (group_id = 5)
+(111,'Supplier',0,5,1),
+(112,'Purchase Entry',0,5,1),
+(113,'Purchase Return',0,5,1),
+(114,'Purchase Report',0,5,1),
+(115,'Purchase Return Report',0,5,1),
+(116,'Supplier Payment Report',0,5,1),
+
+-- Statistics (group_id = 8)
+(117,'Profit Analysis Report',0,8,1),
+(118,'Dashboard',0,8,1),
+(119,'Category Sales Statistics',0,8,1),
+(120,'Product Analysis Report',0,8,1),
+
+-- Stock Reports (group_id = 3)
+(121,'Current Stock',0,3,1),
+(122,'Zero Stock Report',0,3,1),
+(123,'Product Transaction',0,3,1),
+(124,'Stock Adjustment',0,3,1),
+
+-- Account Report (group_id = 6)
+(125,'Sales Report',0,6,1),
+(126,'Sales by Category',0,6,1),
+(127,'Sales by Department',0,6,1),
+(128,'Sales by Product',0,6,1),
+(129,'Sales by Customer',0,6,1),
+(130,'Sales by Attender',0,6,1),
+(131,'Day Book',0,6,1),
+(132,'Commission Report',0,6,1),
+(133,'GSTR-1',0,6,1),
+(134,'Sales Summary',0,6,1),
+(135,'Bill Wise Sales GST',0,6,1),
+(136,'Item Wise Sales GST',0,6,1),
+(137,'HSN Sales GST',0,6,1),
+(138,'Purchase GST',0,6,1),
+(139,'Purchase GST Summary',0,6,1),
+
+-- Credit Management (group_id = 10)
+(140,'Customers Balance',0,10,1),
+(141,'Supplier Payment',0,10,1),
+
+-- User management (group_id = 4)
+(142,'Create User',0,4,1),
+(143,'Module Permission',0,4,1),
+(144,'Special Permission',0,4,1),
+(145,'Attender Management',0,4,1),
+(146,'User Discount',0,4,1),
+
+-- Admin (group_id = 7)
+(147,'Company Details',0,7,1),
+(148,'Edit Bill',0,7,1),
+(149,'Edit Log',0,7,1),
+(150,'Exchange',0,7,1),
+(151,'Exchange & Return Report',0,7,1),
+
+-- Expense (group_id = 12)
+(152,'Expense Type',0,12,1),
+(153,'Expense Entry',0,12,1),
+(154,'Expense Report',0,12,1)
+ON DUPLICATE KEY UPDATE
+  module_name = VALUES(module_name),
+  is_group = VALUES(is_group),
+  group_id = VALUES(group_id);

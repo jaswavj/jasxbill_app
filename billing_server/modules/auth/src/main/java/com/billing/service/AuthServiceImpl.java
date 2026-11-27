@@ -44,9 +44,15 @@ public class AuthServiceImpl implements AuthService {
         if (userId == null) {
             return List.of();
         }
-        return this.userRepository.findModuleIdsByUserId(userId).stream()
-                .map(Number::longValue)
-                .toList();
+        try {
+            return this.userRepository.findModuleIdsByUserId(userId).stream()
+                    .map(Number::longValue)
+                    .toList();
+        } catch (Exception ignored) {
+            return this.userRepository.findRawModuleIdsByUserId(userId).stream()
+                    .map(Number::longValue)
+                    .toList();
+        }
     }
 
     @Override

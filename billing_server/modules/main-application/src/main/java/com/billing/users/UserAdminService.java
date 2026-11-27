@@ -20,7 +20,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -28,14 +34,24 @@ public class UserAdminService {
 
     private final JdbcTemplate jdbcTemplate;
     private final PasswordEncoder passwordEncoder;
+    private final UserModuleCatalog userModuleCatalog;
 
     public List<ModuleData> modules() {
+        userModuleCatalog.ensureCatalog();
         return jdbcTemplate.query(
-                "SELECT id, module_name FROM user_modules ORDER BY id",
+                "SELECT m.id, m.module_name, IFNULL(m.is_group, 1) AS is_group, IFNULL(m.group_id, 0) AS group_id "
+                        + "FROM user_modules m "
+                        + "WHERE IFNULL(m.is_active, 1) = 1 "
+                        + "AND (IFNULL(m.is_group, 1) = 1 OR IFNULL(m.group_id, 0) = 0 OR EXISTS ("
+                        + "  SELECT 1 FROM user_modules g WHERE g.id = m.group_id AND IFNULL(g.is_active, 1) = 1"
+                        + ")) "
+                        + "ORDER BY IF(IFNULL(m.is_group,1)=1, m.id, m.group_id), IFNULL(m.is_group,1) DESC, m.id",
                 (rs, i) -> {
                     ModuleData row = new ModuleData();
                     row.setId(rs.getLong("id"));
                     row.setName(rs.getString("module_name"));
+                    row.setIsGroup(rs.getInt("is_group"));
+                    row.setGroupId(rs.getInt("group_id"));
                     return row;
                 }
         );
@@ -86,11 +102,11 @@ public class UserAdminService {
         data.setUserId(userId);
         data.setName(userDisplayName(userId));
         data.setAll(modules());
-        data.setSelectedIds(jdbcTemplate.query(
+        data.setSelectedIds(expandPermissions(jdbcTemplate.query(
                 "SELECT module_id FROM user_permission WHERE uid = ?",
                 (rs, i) -> rs.getLong(1),
                 userId
-        ));
+        )));
         return data;
     }
 
@@ -231,15 +247,62 @@ public class UserAdminService {
         if (moduleIds == null) {
             return;
         }
-        for (Long moduleId : moduleIds) {
-            if (moduleId == null) {
-                continue;
-            }
+        for (Long moduleId : normalizePermissions(moduleIds)) {
             jdbcTemplate.update(
                     "INSERT INTO user_permission (uid, module_id, date, time) VALUES (?, ?, NOW(), NOW())",
                     uid, moduleId
             );
         }
+    }
+
+    /** Old users with only a main-menu id get every submenu of that group. */
+    private List<Long> expandPermissions(List<Long> raw) {
+        Set<Long> selected = new LinkedHashSet<>();
+        if (raw != null) {
+            for (Long id : raw) {
+                if (id != null) {
+                    selected.add(id);
+                }
+            }
+        }
+        List<ModuleData> all = modules();
+        Map<Long, List<Long>> children = all.stream()
+                .filter(m -> m.getIsGroup() != null && m.getIsGroup() == 0 && m.getGroupId() != null && m.getGroupId() > 0)
+                .collect(Collectors.groupingBy(
+                        m -> m.getGroupId().longValue(),
+                        Collectors.mapping(ModuleData::getId, Collectors.toList())
+                ));
+        for (Map.Entry<Long, List<Long>> e : children.entrySet()) {
+            boolean hasChild = e.getValue().stream().anyMatch(selected::contains);
+            if (selected.contains(e.getKey()) && !hasChild) {
+                selected.addAll(e.getValue());
+            }
+            if (hasChild) {
+                selected.add(e.getKey());
+            }
+        }
+        return new ArrayList<>(selected);
+    }
+
+    private List<Long> normalizePermissions(List<Long> moduleIds) {
+        Set<Long> selected = new LinkedHashSet<>();
+        for (Long id : moduleIds) {
+            if (id != null) {
+                selected.add(id);
+            }
+        }
+        Map<Long, Long> childToParent = modules().stream()
+                .filter(m -> m.getIsGroup() != null && m.getIsGroup() == 0 && m.getGroupId() != null && m.getGroupId() > 0)
+                .collect(Collectors.toMap(ModuleData::getId, m -> m.getGroupId().longValue(), (a, b) -> a));
+        Set<Long> parents = new HashSet<>();
+        for (Long id : List.copyOf(selected)) {
+            Long parent = childToParent.get(id);
+            if (parent != null) {
+                parents.add(parent);
+            }
+        }
+        selected.addAll(parents);
+        return new ArrayList<>(selected);
     }
 
     private void requireUser(Long userId) {

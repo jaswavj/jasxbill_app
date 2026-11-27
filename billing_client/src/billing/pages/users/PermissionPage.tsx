@@ -100,13 +100,13 @@ const PermissionPage: React.FC<{ kind: Kind }> = ({ kind }) => {
         <div className="mst-card">
           <div className="usr-empty">
             <i className={isModule ? 'fas fa-layer-group' : 'fas fa-unlock-alt'} />
-            <p>Select a user to view and update {isModule ? 'module' : 'special'} permissions.</p>
+            <p>Select a user to view and update {isModule ? 'menu' : 'special'} permissions.</p>
           </div>
         </div>
       ) : (
         <div className="mst-card">
           <div className="mst-card-h">
-            <span>{isModule ? 'Modules' : 'Special permissions'} for {current?.name || 'user'}</span>
+            <span>{isModule ? 'Menu access' : 'Special permissions'} for {current?.name || 'user'}</span>
           </div>
           <div className="mst-card-b">
             <PermissionBar
@@ -120,6 +120,7 @@ const PermissionPage: React.FC<{ kind: Kind }> = ({ kind }) => {
               items={items}
               selected={selected}
               onToggle={toggle}
+              onSet={setSelected}
               emptyText={isModule ? 'No modules found.' : 'No special permissions found.'}
             />
             <div className="usr-save-row">

@@ -1,6 +1,6 @@
 .usr-layout {
   display: grid;
-  grid-template-columns: minmax(280px, 380px) 1fr;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
   gap: 12px;
   align-items: start;
 }
@@ -49,6 +49,66 @@
 .usr-tile-acts {
   display: flex;
   gap: 6px;
+}
+
+.usr-perm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.usr-perm-group {
+  border: 1.5px solid color-mix(in srgb, var(--color-primary) 14%, transparent);
+  border-radius: 10px;
+  background: var(--color-bg-surface);
+  padding: 8px;
+}
+
+.usr-perm-group.on {
+  border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 5%, var(--color-bg-surface));
+}
+
+.usr-perm-group.some {
+  border-color: color-mix(in srgb, var(--color-primary) 32%, transparent);
+}
+
+.usr-perm-leaf {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.usr-perm-head {
+  display: grid;
+  grid-template-columns: 32px 1fr 18px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+  padding: 4px 4px 8px;
+}
+
+.usr-perm-head-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.usr-perm-head-txt strong {
+  font-size: 0.88rem;
+  font-weight: 750;
+}
+
+.usr-perm-head-txt em {
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: var(--color-text-muted);
 }
 
 .usr-tiles {

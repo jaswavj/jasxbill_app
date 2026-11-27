@@ -98,7 +98,7 @@ const CreateUserPage: React.FC = () => {
         </div>
         <div className="mst-card">
           <div className="mst-card-h">
-            <span>Module access</span>
+            <span>Menu access</span>
           </div>
           <div className="mst-card-b">
             <PermissionBar
@@ -107,7 +107,13 @@ const CreateUserPage: React.FC = () => {
               onSelectAll={() => setSelected(modules.map((m) => m.id))}
               onClear={() => setSelected([])}
             />
-            <PermissionTiles items={modules} selected={selected} onToggle={toggle} emptyText="No modules available." />
+            <PermissionTiles
+              items={modules}
+              selected={selected}
+              onToggle={toggle}
+              onSet={setSelected}
+              emptyText="No modules available."
+            />
           </div>
         </div>
       </form>
